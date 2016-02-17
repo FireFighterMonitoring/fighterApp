@@ -6,6 +6,9 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -56,6 +59,9 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
 
     private ExecutorService executorService;
 
+    /** TextView to change the ffId */
+    private EditText ffidTextView;
+
     /** Button to trigger connection to a wearable device. */
     private Button connectWatchButton;
 
@@ -87,6 +93,8 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
                 postJSONButtonPressed();
             }
         });
+
+        ffidTextView = (EditText) findViewById(R.id.ffid_textview);
     }
 
     @Override
@@ -128,8 +136,15 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     private void postJSONButtonPressed() {
         Log.d(TAG, "POST JSON here!");
 
+        String ffId = String.valueOf(ffidTextView.getText());
+
+        if (ffId == null || ffId.equals("")) {
+            Toast.makeText(this, "Please enter a FFID first!", Toast.LENGTH_LONG).show();
+            return;
+        }
+
         Firefighter theFigher = new Firefighter();
-        theFigher.ffId = "tobi";
+        theFigher.ffId = ffId;
         theFigher.heartRate = 666;
 
         GsonBuilder gsonBuilder = new GsonBuilder();

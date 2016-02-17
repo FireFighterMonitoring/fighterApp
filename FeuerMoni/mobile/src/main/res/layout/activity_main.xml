@@ -10,6 +10,11 @@
     android:orientation="vertical"
     tools:context="com.jambit.feuermoni.MainActivity">
 
+    <EditText
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:id="@+id/ffid_textview" />
+
     <Button
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
