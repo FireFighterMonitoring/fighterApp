@@ -10,10 +10,33 @@
     android:orientation="vertical"
     tools:context="com.jambit.feuermoni.MainActivity">
 
+    <EditText
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:id="@+id/ffid_textview" />
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Login"
+        android:id="@+id/login_button"
+        android:layout_centerHorizontal="true" />
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Start monitoring"
+        android:id="@+id/start_monitoring_button"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:visibility="gone"/>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:visibility="gone"
+        android:id="@+id/vital_signs_layout">
 
         <TextView
             android:layout_width="wrap_content"
@@ -26,27 +49,6 @@
             android:layout_height="wrap_content"
             android:text="STEPS"
             android:id="@+id/steps_textview"/>
-
     </LinearLayout>
-
-    <Button
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Connect to Watch"
-        android:id="@+id/connect_button"
-        android:layout_alignParentTop="true"
-        android:layout_centerHorizontal="true" />
-
-    <EditText
-        android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:id="@+id/ffid_textview" />
-
-    <Button
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Connect to Backend"
-        android:id="@+id/post_json"
-        android:layout_centerHorizontal="true" />
 
 </LinearLayout>

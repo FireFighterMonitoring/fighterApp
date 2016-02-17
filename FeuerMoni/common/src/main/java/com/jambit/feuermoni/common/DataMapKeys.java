@@ -10,4 +10,9 @@ public class DataMapKeys {
 
     /** Key used to identify the step count value in a DataMap */
     public static final String STEPCOUNT_KEY = "com.jambit.feuermoni.key.stepcount";
+
+    /** Static class - hide constructor... */
+    private DataMapKeys() {
+
+    }
 }

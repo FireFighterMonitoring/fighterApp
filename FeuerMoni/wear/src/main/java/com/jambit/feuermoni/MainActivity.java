@@ -124,8 +124,8 @@ public class MainActivity extends WearableActivity {
 
         Log.d(TAG, "onStart() -> Register listener!");
 
-        sensorManager.registerListener(heartRateListener, this.heartRateSensor, 3);
-        sensorManager.registerListener(stepCounterListener, this.stepCounterSensor, 3);
+        sensorManager.registerListener(heartRateListener, this.heartRateSensor, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(stepCounterListener, this.stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
 
         connectApiClient();
     }

@@ -29,7 +29,7 @@ import com.google.android.gms.wearable.Wearable;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.jambit.feuermoni.common.DataMapKeys;
-import com.jambit.feuermoni.model.Firefighter;
+import com.jambit.feuermoni.model.MonitoringStatus;
 import com.jambit.feuermoni.util.BackgroundThread;
 
 import java.io.IOException;
@@ -72,15 +72,16 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     private EditText ffidTextView;
 
     /** Button to trigger connection to a wearable device. */
-    private Button connectWatchButton;
+    private Button startMonitoringButton;
 
-    /** Button to post JSON data to the FeuerMoni backend service. */
-    private Button postJSONButton;
+    /** Button to login to the FeuerMoni backend service. */
+    private Button loginButton;
 
+    private View vitalSignsLayout;
     private TextView heartRateTextView;
     private TextView stepsTextView;
 
-    private Firefighter theFirefighter;
+    private MonitoringStatus monitoringStatus;
 
     /** Holds the "state" */
     private int currentMessageValue = 0;
@@ -92,11 +93,8 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        theFirefighter = new Firefighter();
-        theFirefighter.ffId = "UNKNOWN";
-
-        connectWatchButton = (Button) findViewById(R.id.connect_button);
-        connectWatchButton.setOnClickListener(new View.OnClickListener() {
+        startMonitoringButton = (Button) findViewById(R.id.start_monitoring_button);
+        startMonitoringButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Log.d(TAG, "Connect Watch button pressed!");
@@ -104,28 +102,40 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
             }
         });
 
-        postJSONButton = (Button) findViewById(R.id.post_json);
-        postJSONButton.setOnClickListener(new View.OnClickListener() {
+        ffidTextView = (EditText) findViewById(R.id.ffid_textview);
+        vitalSignsLayout = findViewById(R.id.vital_signs_layout);
+        heartRateTextView = (TextView) findViewById(R.id.heartrate_textview);
+        stepsTextView = (TextView) findViewById(R.id.steps_textview);
+        loginButton = (Button) findViewById(R.id.login_button);
+        loginButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                theFirefighter.ffId = ffidTextView.getText().toString();
-
                 stopScheduler();
+
+                String ffIdText = ffidTextView.getText().toString();
+
+                if (ffIdText == null || ffIdText.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "Invalid ffId", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
+                monitoringStatus = new MonitoringStatus(ffIdText);
+
+                ffidTextView.setEnabled(false);
+                loginButton.setEnabled(false);
+
+                vitalSignsLayout.setVisibility(View.VISIBLE);
+                startMonitoringButton.setVisibility(View.VISIBLE);
 
                 scheduler = Executors.newScheduledThreadPool(1);
                 scheduler.scheduleAtFixedRate(new Runnable() {
                     @Override
                     public void run() {
-                        postJSON(theFirefighter);
+                        postStatus(monitoringStatus);
                     }
                 }, 0, 5, TimeUnit.SECONDS);
             }
         });
-
-        ffidTextView = (EditText) findViewById(R.id.ffid_textview);
-
-        heartRateTextView = (TextView) findViewById(R.id.heartrate_textview);
-        stepsTextView = (TextView) findViewById(R.id.steps_textview);
 
         SensorManager sensorManager = ((SensorManager)getSystemService(SENSOR_SERVICE));
         Sensor heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE);
@@ -147,8 +157,7 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           String permissions[], int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
         switch (requestCode) {
             case MY_PERMISSIONS_REQUEST_BODY_SENSORS: {
                 // If request is cancelled, the result arrays are empty.
@@ -188,18 +197,23 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
             }
         });
 
-        theFirefighter.heartRate = (int) heartrate;
-        theFirefighter.stepCount = (int) steps;
+        this.monitoringStatus.vitalSigns.heartRate = (int) heartrate;
+        this.monitoringStatus.vitalSigns.stepCount = (int) steps;
     }
 
     /**
      * Opens the connection to a wearable device.
      */
     private void openWearableConnection() {
+        if (monitoringStatus == null) {
+            Log.e(TAG, "ERROR: Are you logged in?");
+            return;
+        }
+
         if (!hasBodySensorsPermission(this)) {
             Log.e(TAG, "Cannot access body sensors!");
-
             this.requestBodySensorsPermission(this);
+            this.monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
             return;
         }
 
@@ -208,15 +222,18 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
                 .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
                     public void onConnected(Bundle bundle) {
                         Log.d(TAG, "onConnected()...");
+                        monitoringStatus.status = MonitoringStatus.Status.OK;
                     }
 
                     public void onConnectionSuspended(int i) {
                         Log.d(TAG, "ConnectionCallback onConnectionSuspended");
+                        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
                     }
                 })
                 .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
                     public void onConnectionFailed(ConnectionResult connectionResult) {
                         Log.d(TAG, "ConnectionCallback onConnectionFailed");
+                        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
                     }
                 }).build();
         apiClient.connect();
@@ -227,12 +244,10 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     /**
      * Posts JSON data to the FireMoni backend service
      */
-    private void postJSON(Firefighter firefighter) {
-        Log.d(TAG, "POST JSON here!");
-
+    private void postStatus(MonitoringStatus status) {
         GsonBuilder gsonBuilder = new GsonBuilder();
         Gson gson = gsonBuilder.create();
-        final String postBody = gson.toJson(firefighter);
+        final String postBody = gson.toJson(status);
 
         final Request request = new Request.Builder()
                 .url(BASE_URL + REST_PATH_DATA)
@@ -261,12 +276,6 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
                 }
             }
         });
-    }
-
-    private void onConnectToBackendPressed() {
-        Log.d(TAG, "Connecting to backend...");
-
-        theFirefighter.ffId = ffidTextView.getText().toString();
     }
 
     private void sendMessageFromBackgroundThread() {
