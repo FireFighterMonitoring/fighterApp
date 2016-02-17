@@ -20,7 +20,10 @@ public class MonitoringStatus {
         OK,
 
         /** Vital sign monitoring is not generating any useful data. */
-        NO_DATA
+        NO_DATA,
+
+        /** User has "logged out" from the app */
+        DISCONNECTED
     }
 
     /**  The fire fighter's unique ID */
@@ -30,11 +33,10 @@ public class MonitoringStatus {
     public Status status;
 
     /** Last konwn vital sign values. */
-    public final VitalSigns vitalSigns;
+    public VitalSigns vitalSigns;
 
     public MonitoringStatus(String ffId) {
         this.ffId = ffId;
         this.status = Status.NO_DATA;
-        this.vitalSigns = new VitalSigns();
     }
 }

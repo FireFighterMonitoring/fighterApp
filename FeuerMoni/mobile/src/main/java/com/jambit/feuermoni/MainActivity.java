@@ -19,17 +19,15 @@ import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.MessageApi;
 import com.google.android.gms.wearable.MessageEvent;
-import com.google.android.gms.wearable.Node;
-import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.jambit.feuermoni.common.DataMapKeys;
 import com.jambit.feuermoni.model.MonitoringStatus;
+import com.jambit.feuermoni.model.VitalSigns;
 import com.jambit.feuermoni.util.BackgroundThread;
 
 import java.io.IOException;
@@ -98,7 +96,11 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
             @Override
             public void onClick(View v) {
                 Log.d(TAG, "Connect Watch button pressed!");
-                openWearableConnection();
+                if (apiClient == null) {
+                    openWearableConnection();
+                } else {
+                    closeWearableConnection();
+                }
             }
         });
 
@@ -110,30 +112,12 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
         loginButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                stopScheduler();
-
-                String ffIdText = ffidTextView.getText().toString();
-
-                if (ffIdText == null || ffIdText.isEmpty()) {
-                    Toast.makeText(MainActivity.this, "Invalid ffId", Toast.LENGTH_LONG).show();
-                    return;
+                if (monitoringStatus == null) {
+                    monitoringStatus = login();
+                } else {
+                    logout();
+                    monitoringStatus = null;
                 }
-
-                monitoringStatus = new MonitoringStatus(ffIdText);
-
-                ffidTextView.setEnabled(false);
-                loginButton.setEnabled(false);
-
-                vitalSignsLayout.setVisibility(View.VISIBLE);
-                startMonitoringButton.setVisibility(View.VISIBLE);
-
-                scheduler = Executors.newScheduledThreadPool(1);
-                scheduler.scheduleAtFixedRate(new Runnable() {
-                    @Override
-                    public void run() {
-                        postStatus(monitoringStatus);
-                    }
-                }, 0, 5, TimeUnit.SECONDS);
             }
         });
 
@@ -186,59 +170,23 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
         heartRateTextView.post(new Runnable() {
             @Override
             public void run() {
-                heartRateTextView.setText("Rate: " + heartrate);
+                heartRateTextView.setText(String.format(getString(R.string.rate), (int) heartrate));
             }
         });
 
         stepsTextView.post(new Runnable() {
             @Override
             public void run() {
-                stepsTextView.setText("Steps: " + steps);
+                stepsTextView.setText(String.format(getString(R.string.steps), (int) steps));
             }
         });
 
-        this.monitoringStatus.vitalSigns.heartRate = (int) heartrate;
-        this.monitoringStatus.vitalSigns.stepCount = (int) steps;
-    }
-
-    /**
-     * Opens the connection to a wearable device.
-     */
-    private void openWearableConnection() {
         if (monitoringStatus == null) {
-            Log.e(TAG, "ERROR: Are you logged in?");
+            Log.e(TAG, "Data was received from wearable but monitoring status is null - this shouldn't happen!");
             return;
         }
 
-        if (!hasBodySensorsPermission(this)) {
-            Log.e(TAG, "Cannot access body sensors!");
-            this.requestBodySensorsPermission(this);
-            this.monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
-            return;
-        }
-
-        apiClient = new GoogleApiClient.Builder(this)
-                .addApi(Wearable.API)
-                .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
-                    public void onConnected(Bundle bundle) {
-                        Log.d(TAG, "onConnected()...");
-                        monitoringStatus.status = MonitoringStatus.Status.OK;
-                    }
-
-                    public void onConnectionSuspended(int i) {
-                        Log.d(TAG, "ConnectionCallback onConnectionSuspended");
-                        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
-                    }
-                })
-                .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
-                    public void onConnectionFailed(ConnectionResult connectionResult) {
-                        Log.d(TAG, "ConnectionCallback onConnectionFailed");
-                        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
-                    }
-                }).build();
-        apiClient.connect();
-
-        Wearable.MessageApi.addListener(apiClient, this);
+        monitoringStatus.vitalSigns = new VitalSigns((int) heartrate, (int) steps);
     }
 
     /**
@@ -278,28 +226,6 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
         });
     }
 
-    private void sendMessageFromBackgroundThread() {
-        this.executorService = Executors.newCachedThreadPool();
-        this.executorService.execute(new Runnable() {
-            public void run() {
-                sendMessage();
-            }
-        });
-    }
-
-    private void sendMessage() {
-        DataMap dataMap = new DataMap();
-        dataMap.putInt(DataMapKeys.HEARTRATE_KEY, currentMessageValue);
-        PendingResult<NodeApi.GetConnectedNodesResult> nodes = Wearable.NodeApi.getConnectedNodes(apiClient);
-
-        NodeApi.GetConnectedNodesResult nodesResult = nodes.await();
-        List<Node> nodeList = nodesResult.getNodes();
-
-        for (Node node : nodeList) {
-            Wearable.MessageApi.sendMessage(apiClient, node.getId(), "accumulator", dataMap.toByteArray()).await();
-        }
-    }
-
     private boolean hasBodySensorsPermission(Context context) {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.BODY_SENSORS) == PackageManager.PERMISSION_GRANTED;
     }
@@ -325,5 +251,121 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
             scheduler.shutdownNow();
             scheduler = null;
         }
+    }
+
+    private MonitoringStatus login() {
+        stopScheduler();
+
+        String ffIdText = ffidTextView.getText().toString();
+
+        if (ffIdText == null || ffIdText.isEmpty()) {
+            Toast.makeText(MainActivity.this, "Invalid ffId", Toast.LENGTH_LONG).show();
+            return null;
+        }
+
+        MonitoringStatus result = new MonitoringStatus(ffIdText);
+
+        ffidTextView.setEnabled(false);
+        loginButton.setText(R.string.logout);
+
+        vitalSignsLayout.setVisibility(View.VISIBLE);
+        startMonitoringButton.setVisibility(View.VISIBLE);
+
+        scheduler = Executors.newScheduledThreadPool(1);
+        scheduler.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                postStatus(monitoringStatus);
+            }
+        }, 0, 5, TimeUnit.SECONDS);
+
+        return result;
+    }
+
+    private void logout() {
+        closeWearableConnection();
+        stopScheduler();
+
+        monitoringStatus.status = MonitoringStatus.Status.DISCONNECTED;
+        postStatus(monitoringStatus);
+
+        loginButton.post(new Runnable() {
+            @Override
+            public void run() {
+                ffidTextView.setEnabled(false);
+                loginButton.setText(R.string.login);
+
+                vitalSignsLayout.setVisibility(View.GONE);
+                startMonitoringButton.setVisibility(View.GONE);
+            }
+        });
+    }
+
+
+    /**
+     * Opens the connection to a wearable device.
+     */
+    private void openWearableConnection() {
+        if (monitoringStatus == null) {
+            Log.e(TAG, "ERROR: Are you logged in?");
+            return;
+        }
+
+        if (!hasBodySensorsPermission(this)) {
+            Log.e(TAG, "Cannot access body sensors!");
+            requestBodySensorsPermission(this);
+            monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
+            monitoringStatus.vitalSigns = null;
+            return;
+        }
+
+        apiClient = new GoogleApiClient.Builder(this)
+                .addApi(Wearable.API)
+                .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
+                    public void onConnected(Bundle bundle) {
+                        Log.d(TAG, "onConnected()...");
+                        monitoringStatus.status = MonitoringStatus.Status.OK;
+
+                        loginButton.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                vitalSignsLayout.setVisibility(View.VISIBLE);
+                                startMonitoringButton.setText(R.string.stop_monitoring);
+                            }
+                        });
+                    }
+
+                    public void onConnectionSuspended(int i) {
+                        Log.d(TAG, "ConnectionCallback onConnectionSuspended");
+                        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
+                        monitoringStatus.vitalSigns = null;
+                    }
+                })
+                .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
+                    public void onConnectionFailed(ConnectionResult connectionResult) {
+                        Log.d(TAG, "ConnectionCallback onConnectionFailed");
+                        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
+                        monitoringStatus.vitalSigns = null;
+                    }
+                }).build();
+        apiClient.connect();
+
+        Wearable.MessageApi.addListener(apiClient, this);
+    }
+
+    private void closeWearableConnection() {
+        loginButton.post(new Runnable() {
+            @Override
+            public void run() {
+                vitalSignsLayout.setVisibility(View.GONE);
+                startMonitoringButton.setText(R.string.start_monitoring);
+            }
+        });
+
+        apiClient.disconnect();
+        apiClient = null;
+
+        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
+        monitoringStatus.vitalSigns = null;
     }
 }
