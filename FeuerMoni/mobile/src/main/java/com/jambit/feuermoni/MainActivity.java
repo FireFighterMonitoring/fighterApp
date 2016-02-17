@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
-import android.os.Handler;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -29,10 +28,9 @@ import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.jambit.feuermoni.common.DataMapKeys;
 import com.jambit.feuermoni.model.Firefighter;
 import com.jambit.feuermoni.util.BackgroundThread;
-
-import org.w3c.dom.Text;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,10 +49,6 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
 
     /** The tag used for logging. */
     private static final String TAG = MainActivity.class.getSimpleName();
-
-    /** Key used to identify the heartrate value in a DataMap */
-    private static final String HEARTRATE_KEY = "com.jambit.feuermoni.key.heartrate";
-    private static final String STEPCOUNT_KEY = "com.jambit.feuermoni.key.stepcount";
 
     private static final int MY_PERMISSIONS_REQUEST_BODY_SENSORS = 42;
 
@@ -175,8 +169,8 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
         DataMap dataMap = DataMap.fromByteArray(messageEvent.getData());
-        final float heartrate = dataMap.getFloat(HEARTRATE_KEY);
-        final float steps = dataMap.getFloat(STEPCOUNT_KEY);
+        final float heartrate = dataMap.getFloat(DataMapKeys.HEARTRATE_KEY);
+        final float steps = dataMap.getFloat(DataMapKeys.STEPCOUNT_KEY);
 
         Log.d(TAG, "A message has been received! heartrate: " + heartrate + " steps: " + steps);
 
@@ -286,7 +280,7 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
 
     private void sendMessage() {
         DataMap dataMap = new DataMap();
-        dataMap.putInt(HEARTRATE_KEY, currentMessageValue);
+        dataMap.putInt(DataMapKeys.HEARTRATE_KEY, currentMessageValue);
         PendingResult<NodeApi.GetConnectedNodesResult> nodes = Wearable.NodeApi.getConnectedNodes(apiClient);
 
         NodeApi.GetConnectedNodesResult nodesResult = nodes.await();

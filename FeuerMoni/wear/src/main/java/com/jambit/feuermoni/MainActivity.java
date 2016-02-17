@@ -1,6 +1,5 @@
 package com.jambit.feuermoni;
 
-import android.app.Activity;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -18,6 +17,7 @@ import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
+import com.jambit.feuermoni.common.DataMapKeys;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -25,11 +25,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends WearableActivity {
-
-    /** Key used to identify the heartrate value in a DataMap */
-    private static final String HEARTRATE_KEY = "com.jambit.feuermoni.key.heartrate";
-    private static final String STEPCOUNT_KEY = "com.jambit.feuermoni.key.stepcount";
-
     private static final long CONNECTION_TIME_OUT_MS = 100;
 
     private static final String TAG = MainActivity.class.getSimpleName();
@@ -179,8 +174,8 @@ public class MainActivity extends WearableActivity {
         Log.v(TAG, "In doReply() - heart rate: " + heartrate + " steps: " + steps);
 
         final DataMap resultDataMap = new DataMap();
-        resultDataMap.putFloat(HEARTRATE_KEY, heartrate);
-        resultDataMap.putFloat(STEPCOUNT_KEY, steps);
+        resultDataMap.putFloat(DataMapKeys.HEARTRATE_KEY, heartrate);
+        resultDataMap.putFloat(DataMapKeys.STEPCOUNT_KEY, steps);
 
         if (googleApiClient != null && !(googleApiClient.isConnected() || googleApiClient.isConnecting())) {
             googleApiClient.blockingConnect(CONNECTION_TIME_OUT_MS, TimeUnit.MILLISECONDS);

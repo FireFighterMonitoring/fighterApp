@@ -11,6 +11,7 @@ public class Firefighter {
     public int heartRate;
     public int stepCount;
 
+
     public Firefighter() {
 
     }
