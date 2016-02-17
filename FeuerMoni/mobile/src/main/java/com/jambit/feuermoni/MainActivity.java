@@ -1,6 +1,12 @@
 package com.jambit.feuermoni;
 
+import android.Manifest;
+import android.app.Activity;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Handler;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -42,6 +48,8 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
 
     /** Key used to identify the heartrate value in a DataMap */
     private static final String HEARTRATE_KEY = "com.jambit.feuermoni.key.heartrate";
+
+    private static final int MY_PERMISSIONS_REQUEST_BODY_SENSORS = 42;
 
     /** Media Type used for POST requests */
     private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
@@ -105,10 +113,37 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
         currentMessageValue = dataMap.getInt(HEARTRATE_KEY);
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case MY_PERMISSIONS_REQUEST_BODY_SENSORS: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d(TAG, "BODY_SENSORS permission was granted!");
+                } else {
+                    // permission denied, boo! Disable the
+                    // functionality that depends on this permission.
+                    Toast.makeText(this, "Without BODY_SENSORS permission this app won't work!", Toast.LENGTH_LONG).show();
+                }
+                return;
+            }
+
+            // other 'case' lines to check for other permissions this app might request
+        }
+    }
+
     /**
      * Opens the connection to a wearable device.
      */
     private void openWearableConnection() {
+        if (!hasBodySensorsPermission(this)) {
+            Log.e(TAG, "Cannot access body sensors!");
+
+            this.requestBodySensorsPermission(this);
+            return;
+        }
+
         apiClient = new GoogleApiClient.Builder(this)
                 .addApi(Wearable.API)
                 .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
@@ -204,6 +239,30 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
 
         for (Node node : nodeList) {
             Wearable.MessageApi.sendMessage(apiClient, node.getId(), "accumulator", dataMap.toByteArray()).await();
+        }
+    }
+
+    private boolean hasBodySensorsPermission(Context context) {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.BODY_SENSORS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestBodySensorsPermission(Activity activity) {
+        // Here, thisActivity is the current activity
+        if (ContextCompat.checkSelfPermission(activity,
+                Manifest.permission.BODY_SENSORS)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    Manifest.permission.BODY_SENSORS)) {
+
+                Toast.makeText(activity, "I need permission to access body sensors!", Toast.LENGTH_LONG).show();
+
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BODY_SENSORS}, MY_PERMISSIONS_REQUEST_BODY_SENSORS);
+            } else {
+                // No explanation needed, we can request the permission.
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BODY_SENSORS}, MY_PERMISSIONS_REQUEST_BODY_SENSORS);
+            }
         }
     }
 }
