@@ -8,7 +8,7 @@ android {
     defaultConfig {
         applicationId "com.jambit.feuermoni"
         minSdkVersion 22
-        targetSdkVersion 23
+        targetSdkVersion 22
         versionCode 1
         versionName "1.0"
     }
