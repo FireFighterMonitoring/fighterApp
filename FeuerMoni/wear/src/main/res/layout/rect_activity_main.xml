@@ -11,5 +11,7 @@
         android:id="@+id/text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/hello_square" />
+        android:text="@string/hello_square"
+        android:textSize="64sp"
+        android:textColor="#FF0000"/>
 </LinearLayout>

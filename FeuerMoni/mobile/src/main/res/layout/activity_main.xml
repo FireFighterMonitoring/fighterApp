@@ -10,10 +10,24 @@
     android:orientation="vertical"
     tools:context="com.jambit.feuermoni.MainActivity">
 
-    <EditText
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:id="@+id/ffid_textview" />
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="RATE"
+            android:id="@+id/heartrate_textview"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="STEPS"
+            android:id="@+id/steps_textview"/>
+
+    </LinearLayout>
 
     <Button
         android:layout_width="match_parent"
@@ -23,10 +37,16 @@
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true" />
 
+    <EditText
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:id="@+id/ffid_textview" />
+
     <Button
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="POST data"
+        android:text="Connect to Backend"
         android:id="@+id/post_json"
         android:layout_centerHorizontal="true" />
+
 </LinearLayout>

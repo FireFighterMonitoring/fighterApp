@@ -32,10 +32,14 @@ import com.google.gson.GsonBuilder;
 import com.jambit.feuermoni.model.Firefighter;
 import com.jambit.feuermoni.util.BackgroundThread;
 
+import org.w3c.dom.Text;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -50,6 +54,7 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
 
     /** Key used to identify the heartrate value in a DataMap */
     private static final String HEARTRATE_KEY = "com.jambit.feuermoni.key.heartrate";
+    private static final String STEPCOUNT_KEY = "com.jambit.feuermoni.key.stepcount";
 
     private static final int MY_PERMISSIONS_REQUEST_BODY_SENSORS = 42;
 
@@ -78,13 +83,23 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     /** Button to post JSON data to the FeuerMoni backend service. */
     private Button postJSONButton;
 
+    private TextView heartRateTextView;
+    private TextView stepsTextView;
+
+    private Firefighter theFirefighter;
+
     /** Holds the "state" */
     private int currentMessageValue = 0;
+
+    private ScheduledExecutorService scheduler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        theFirefighter = new Firefighter();
+        theFirefighter.ffId = "UNKNOWN";
 
         connectWatchButton = (Button) findViewById(R.id.connect_button);
         connectWatchButton.setOnClickListener(new View.OnClickListener() {
@@ -99,12 +114,24 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
         postJSONButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Log.d(TAG, "POST JSON DATA HERE!");
-                postJSONButtonPressed();
+                theFirefighter.ffId = ffidTextView.getText().toString();
+
+                stopScheduler();
+
+                scheduler = Executors.newScheduledThreadPool(1);
+                scheduler.scheduleAtFixedRate(new Runnable() {
+                    @Override
+                    public void run() {
+                        postJSON(theFirefighter);
+                    }
+                }, 0, 5, TimeUnit.SECONDS);
             }
         });
 
         ffidTextView = (EditText) findViewById(R.id.ffid_textview);
+
+        heartRateTextView = (TextView) findViewById(R.id.heartrate_textview);
+        stepsTextView = (TextView) findViewById(R.id.steps_textview);
 
         SensorManager sensorManager = ((SensorManager)getSystemService(SENSOR_SERVICE));
         Sensor heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE);
@@ -116,15 +143,13 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
         for (Sensor aSensor : sensors) {
             Log.d(TAG, aSensor.getName() + ": " + aSensor.getStringType());
         }
-
     }
 
     @Override
-    public void onMessageReceived(MessageEvent messageEvent) {
-        Log.d(TAG, "A message has been received!");
+    protected void onPause() {
+        super.onPause();
 
-        DataMap dataMap = DataMap.fromByteArray(messageEvent.getData());
-        currentMessageValue = dataMap.getInt(HEARTRATE_KEY);
+        stopScheduler();
     }
 
     @Override
@@ -145,6 +170,32 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
 
             // other 'case' lines to check for other permissions this app might request
         }
+    }
+
+    @Override
+    public void onMessageReceived(MessageEvent messageEvent) {
+        DataMap dataMap = DataMap.fromByteArray(messageEvent.getData());
+        final float heartrate = dataMap.getFloat(HEARTRATE_KEY);
+        final float steps = dataMap.getFloat(STEPCOUNT_KEY);
+
+        Log.d(TAG, "A message has been received! heartrate: " + heartrate + " steps: " + steps);
+
+        heartRateTextView.post(new Runnable() {
+            @Override
+            public void run() {
+                heartRateTextView.setText("Rate: " + heartrate);
+            }
+        });
+
+        stepsTextView.post(new Runnable() {
+            @Override
+            public void run() {
+                stepsTextView.setText("Steps: " + steps);
+            }
+        });
+
+        theFirefighter.heartRate = (int) heartrate;
+        theFirefighter.stepCount = (int) steps;
     }
 
     /**
@@ -182,23 +233,12 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     /**
      * Posts JSON data to the FireMoni backend service
      */
-    private void postJSONButtonPressed() {
+    private void postJSON(Firefighter firefighter) {
         Log.d(TAG, "POST JSON here!");
-
-        String ffId = String.valueOf(ffidTextView.getText());
-
-        if (ffId == null || ffId.equals("")) {
-            Toast.makeText(this, "Please enter a FFID first!", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        Firefighter theFigher = new Firefighter();
-        theFigher.ffId = ffId;
-        theFigher.heartRate = 666;
 
         GsonBuilder gsonBuilder = new GsonBuilder();
         Gson gson = gsonBuilder.create();
-        final String postBody = gson.toJson(theFigher);
+        final String postBody = gson.toJson(firefighter);
 
         final Request request = new Request.Builder()
                 .url(BASE_URL + REST_PATH_DATA)
@@ -229,9 +269,10 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
         });
     }
 
-    private void onSendMessagePressed() {
-        Log.d(TAG, "Sending message...");
-        sendMessageFromBackgroundThread();
+    private void onConnectToBackendPressed() {
+        Log.d(TAG, "Connecting to backend...");
+
+        theFirefighter.ffId = ffidTextView.getText().toString();
     }
 
     private void sendMessageFromBackgroundThread() {
@@ -262,21 +303,24 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
 
     private void requestBodySensorsPermission(Activity activity) {
         // Here, thisActivity is the current activity
-        if (ContextCompat.checkSelfPermission(activity,
-                Manifest.permission.BODY_SENSORS)
-                != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.BODY_SENSORS) != PackageManager.PERMISSION_GRANTED) {
 
             // Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
-                    Manifest.permission.BODY_SENSORS)) {
-
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.BODY_SENSORS)) {
                 Toast.makeText(activity, "I need permission to access body sensors!", Toast.LENGTH_LONG).show();
-
                 ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BODY_SENSORS}, MY_PERMISSIONS_REQUEST_BODY_SENSORS);
             } else {
                 // No explanation needed, we can request the permission.
                 ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BODY_SENSORS}, MY_PERMISSIONS_REQUEST_BODY_SENSORS);
             }
+        }
+    }
+
+    private void stopScheduler() {
+        if (scheduler != null) {
+            Log.d(TAG, "stopping scheduler");
+            scheduler.shutdownNow();
+            scheduler = null;
         }
     }
 }

@@ -9,6 +9,7 @@ public class Firefighter {
 
     public String ffId;
     public int heartRate;
+    public int stepCount;
 
     public Firefighter() {
 
