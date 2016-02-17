@@ -16,6 +16,9 @@ import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.jambit.feuermoni.model.Firefighter;
 import com.jambit.feuermoni.util.BackgroundThread;
 
 import java.io.IOException;
@@ -39,6 +42,9 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
 
     /** Media Type used for POST requests */
     private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
+
+    private static final String BASE_URL = "http://192.168.232.112:8080/api/v1";
+    private static final String REST_PATH_DATA = "/data";
 
     /** HTTP client */
     private final OkHttpClient client = new OkHttpClient();
@@ -122,16 +128,16 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     private void postJSONButtonPressed() {
         Log.d(TAG, "POST JSON here!");
 
-        String postBody = ""
-                + "Releases\n"
-                + "--------\n"
-                + "\n"
-                + " * _1.0_ May 6, 2013\n"
-                + " * _1.1_ June 15, 2013\n"
-                + " * _1.2_ August 11, 2013\n";
+        Firefighter theFigher = new Firefighter();
+        theFigher.ffId = "tobi";
+        theFigher.heartRate = 666;
+
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        Gson gson = gsonBuilder.create();
+        final String postBody = gson.toJson(theFigher);
 
         final Request request = new Request.Builder()
-                .url("http://192.168.43.146:3000/data")
+                .url(BASE_URL + REST_PATH_DATA)
                 .post(RequestBody.create(MEDIA_TYPE_JSON, postBody))
                 .build();
         backgroundThread.post(new Runnable() {
@@ -140,6 +146,7 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
                 Response response = null;
 
                 try {
+                    Log.d(TAG, "POSTing JSON: " + postBody + " to Host: " + BASE_URL);
                     response = client.newCall(request).execute();
 
                     if (!response.isSuccessful()) {
