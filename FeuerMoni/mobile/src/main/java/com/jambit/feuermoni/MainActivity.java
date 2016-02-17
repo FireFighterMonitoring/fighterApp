@@ -4,6 +4,8 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
 import android.os.Handler;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -103,6 +105,18 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
         });
 
         ffidTextView = (EditText) findViewById(R.id.ffid_textview);
+
+        SensorManager sensorManager = ((SensorManager)getSystemService(SENSOR_SERVICE));
+        Sensor heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE);
+        if(heartRateSensor == null) {
+            Log.d(TAG, "heart rate sensor is null");
+        }
+
+        List<Sensor> sensors = sensorManager.getSensorList(Sensor.TYPE_ALL);
+        for (Sensor aSensor : sensors) {
+            Log.d(TAG, aSensor.getName() + ": " + aSensor.getStringType());
+        }
+
     }
 
     @Override
