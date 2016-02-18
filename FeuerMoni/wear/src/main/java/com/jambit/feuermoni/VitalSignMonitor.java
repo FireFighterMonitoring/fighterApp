@@ -104,6 +104,13 @@ public class VitalSignMonitor {
         };
 
         this.executorService = Executors.newCachedThreadPool();
+
+
+        List<Sensor> sensorList = sensorManager.getSensorList(Sensor.TYPE_ALL);
+
+        for (Sensor sensor : sensorList) {
+            Log.d(TAG, "Sensor type: " + sensor.getStringType());
+        }
     }
 
     public void startMonitoring() {

@@ -19,6 +19,7 @@ import android.widget.Toast;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.jambit.feuermoni.ble.BLEDiscovery;
 import com.jambit.feuermoni.model.MonitoringStatus;
 import com.jambit.feuermoni.model.VitalSigns;
 import com.jambit.feuermoni.util.BackgroundThread;
@@ -72,6 +73,8 @@ public class MainActivity extends AppCompatActivity {
 
     private ScheduledExecutorService scheduler;
     private WearableConnection wearableConnection;
+
+    private BLEDiscovery bluetoothDiscovery;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -204,11 +207,19 @@ public class MainActivity extends AppCompatActivity {
                 thread.post(new Runnable() {
                     @Override
                     public void run() {
-                        wearableConnection.broadcastMessagePath("TOBITEST");
+                        if (bluetoothDiscovery.requestLocationPermission(MainActivity.this)) {
+                            if (!bluetoothDiscovery.isBluetoothAvailable()) {
+                                bluetoothDiscovery.requestBluetoothPermission(MainActivity.this);
+                            } else {
+                                bluetoothDiscovery.scan(true);
+                            }
+                        }
                     }
                 });
             }
         });
+
+        bluetoothDiscovery = new BLEDiscovery(this);
     }
 
     @Override
