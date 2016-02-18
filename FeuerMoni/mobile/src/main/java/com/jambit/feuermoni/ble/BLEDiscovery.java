@@ -35,6 +35,10 @@ import java.util.UUID;
  * Created by tschroep on 18.02.16.
  */
 public class BLEDiscovery {
+    public interface Listener {
+        void onDeviceDiscovered(BluetoothDevice device);
+    }
+
     public static final String TAG = BLEDiscovery.class.getSimpleName();
 
     private static final int REQUEST_ENABLE_BT = 0;
@@ -54,44 +58,11 @@ public class BLEDiscovery {
 
     private Set<BluetoothDevice> compatibleScanRecords;
 
-    private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
-        @Override
-        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            String intentAction;
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.i(TAG, "Connected to GATT server.");
-                Log.i(TAG, "Attempting to start service discovery:" + gatt.discoverServices());
+    private Listener listener;
 
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Log.i(TAG, "Disconnected from GATT server.");
-            }
-        }
-
-        @Override
-        // New services discovered
-        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                for (BluetoothGattService service : gatt.getServices()) {
-                    Log.d(TAG, "onServicesDiscovered() - Service: " + service.getUuid());
-                }
-            } else {
-                Log.w(TAG, "onServicesDiscovered received: " + status);
-            }
-        }
-
-        @Override
-        // Result of a characteristic read operation
-        public void onCharacteristicRead(BluetoothGatt gatt,
-                                         BluetoothGattCharacteristic characteristic,
-                                         int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.d(TAG, "onCharacteristicRead()");
-            }
-        }
-    };
 
     // Stops scanning after 10 seconds.
-    private static final long SCAN_PERIOD = 10000;
+    private static final long SCAN_PERIOD = 3000;
 
     public BLEDiscovery(Context context) {
         bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
@@ -99,6 +70,10 @@ public class BLEDiscovery {
         bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
 
         this.context = context;
+    }
+
+    public void setListener(Listener listener) {
+        this.listener = listener;
     }
 
     public boolean isBluetoothAvailable() {
@@ -158,7 +133,11 @@ public class BLEDiscovery {
                     if (uuid.getUuid().equals(HEART_RATE_SERVICE_UUID)) {
                         BluetoothDevice device = result.getDevice();
                         Log.i(TAG, "Found a Heart Rate Service on device: " + device.getName());
-                        compatibleScanRecords.add(device);
+                        if (compatibleScanRecords.add(device)) {
+                            if (listener != null) {
+                                listener.onDeviceDiscovered(device);
+                            }
+                        }
 
                         Log.d(TAG, "Set has: " + compatibleScanRecords.size() + " item(s)");
                     }

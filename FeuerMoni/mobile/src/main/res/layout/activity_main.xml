@@ -52,9 +52,15 @@
     <Button
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Send message"
+        android:text="Search bluetooth devices"
         android:id="@+id/send_message_button"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"/>
+
+
+    <ListView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/bluetooth_devices_list"/>
 
 </LinearLayout>

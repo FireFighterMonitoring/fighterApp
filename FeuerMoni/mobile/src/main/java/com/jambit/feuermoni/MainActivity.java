@@ -2,6 +2,7 @@ package com.jambit.feuermoni;
 
 import android.Manifest;
 import android.app.Activity;
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
@@ -12,14 +13,18 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.jambit.feuermoni.ble.BLEDiscovery;
+import com.jambit.feuermoni.ble.BluetoothDeviceWrapper;
 import com.jambit.feuermoni.model.MonitoringStatus;
 import com.jambit.feuermoni.model.VitalSigns;
 import com.jambit.feuermoni.util.BackgroundThread;
@@ -68,6 +73,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView heartRateTextView;
     private TextView stepsTextView;
     private Button sendMessageButton;
+    private ListView devicesListView;
+    private ArrayAdapter<BluetoothDeviceWrapper> devicesArrayAdapter;
 
     private MonitoringStatus monitoringStatus;
 
@@ -219,7 +226,25 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        devicesArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
+        devicesListView = (ListView) findViewById(R.id.bluetooth_devices_list);
+        devicesListView.setAdapter(devicesArrayAdapter);
+        devicesListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                BluetoothDeviceWrapper deviceWrapper = devicesArrayAdapter.getItem(position);
+                Log.d(TAG, "Item selected: " + deviceWrapper + " (position: " + position + ")");
+                deviceWrapper.connect();
+            }
+        });
+
         bluetoothDiscovery = new BLEDiscovery(this);
+        bluetoothDiscovery.setListener(new BLEDiscovery.Listener() {
+            @Override
+            public void onDeviceDiscovered(BluetoothDevice device) {
+                devicesArrayAdapter.add(new BluetoothDeviceWrapper(device, MainActivity.this));
+            }
+        });
     }
 
     @Override
