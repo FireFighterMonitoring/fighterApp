@@ -29,8 +29,12 @@ dependencies {
     compile 'com.android.support:appcompat-v7:23.1.1'
     compile 'com.google.android.gms:play-services:8.4.0'
 
+    compile project(':common')
+
     // from https://github.com/codepath/android_guides/wiki/Consuming-APIs-with-Retrofit
     compile 'com.google.code.gson:gson:2.6.1'
     compile 'com.squareup.okhttp3:okhttp:3.1.2'
-    compile project(':common')
+
+    compile 'io.reactivex:rxandroid:1.1.0'
+    compile 'io.reactivex:rxjava:1.1.0'
 }

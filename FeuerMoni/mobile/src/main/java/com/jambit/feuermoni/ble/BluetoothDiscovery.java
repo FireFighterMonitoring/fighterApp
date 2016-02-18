@@ -4,16 +4,13 @@ import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
-import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -31,15 +28,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import rx.Observable;
+import rx.exceptions.OnCompletedFailedException;
+import rx.subjects.PublishSubject;
+
 /**
  * Created by tschroep on 18.02.16.
  */
-public class BLEDiscovery {
-    public interface Listener {
-        void onDeviceDiscovered(BluetoothDevice device);
-    }
-
-    public static final String TAG = BLEDiscovery.class.getSimpleName();
+public class BluetoothDiscovery {
+    public static final String TAG = BluetoothDiscovery.class.getSimpleName();
 
     private static final int REQUEST_ENABLE_BT = 0;
     private static final int REQUEST_LOACTION_PERMISSION = 1;
@@ -48,9 +45,6 @@ public class BLEDiscovery {
     private final BluetoothAdapter bluetoothAdapter;
     private final BluetoothLeScanner bluetoothLeScanner;
 
-    private Context context;
-
-    private boolean scanning;
     private BackgroundThread backgroundThread = new BackgroundThread();
 
     public static String HEART_RATE_SERVICE = "0000180d-0000-1000-8000-00805f9b34fb";
@@ -58,22 +52,13 @@ public class BLEDiscovery {
 
     private Set<BluetoothDevice> compatibleScanRecords;
 
-    private Listener listener;
-
-
     // Stops scanning after 10 seconds.
     private static final long SCAN_PERIOD = 3000;
 
-    public BLEDiscovery(Context context) {
+    public BluetoothDiscovery(Context context) {
         bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
         bluetoothAdapter = bluetoothManager.getAdapter();
         bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-
-        this.context = context;
-    }
-
-    public void setListener(Listener listener) {
-        this.listener = listener;
     }
 
     public boolean isBluetoothAvailable() {
@@ -111,12 +96,12 @@ public class BLEDiscovery {
         }
     }
 
-    public void scan(final boolean enable) {
+    public Observable<BluetoothDevice> scan() {
+        final PublishSubject<BluetoothDevice> heartrateDevicesSubject = PublishSubject.create();
         final ScanCallback scanCallback = new ScanCallback() {
             @Override
             public void onScanResult(int callbackType, ScanResult result) {
                 super.onScanResult(callbackType, result);
-
                 Log.d(TAG, "onScanResult() : " + result.getDevice().getName());
 
                 ScanRecord scanRecord = result.getScanRecord();
@@ -133,10 +118,9 @@ public class BLEDiscovery {
                     if (uuid.getUuid().equals(HEART_RATE_SERVICE_UUID)) {
                         BluetoothDevice device = result.getDevice();
                         Log.i(TAG, "Found a Heart Rate Service on device: " + device.getName());
+
                         if (compatibleScanRecords.add(device)) {
-                            if (listener != null) {
-                                listener.onDeviceDiscovered(device);
-                            }
+                            heartrateDevicesSubject.onNext(device);
                         }
 
                         Log.d(TAG, "Set has: " + compatibleScanRecords.size() + " item(s)");
@@ -147,26 +131,32 @@ public class BLEDiscovery {
             @Override
             public void onScanFailed(int errorCode) {
                 super.onScanFailed(errorCode);
+                heartrateDevicesSubject.onError(new Throwable("BLE scan failed!"));
             }
         };
 
-        if (enable) {
-            compatibleScanRecords = new HashSet<>();
+        compatibleScanRecords = new HashSet<>();
 
-            // Stops scanning after a pre-defined scan period.
-            backgroundThread.getHandler().postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    scanning = false;
-                    bluetoothLeScanner.stopScan(scanCallback);
-                }
-            }, SCAN_PERIOD);
+        List<ScanFilter> scanFilters = new ArrayList<>();
+        scanFilters.add(new ScanFilter.Builder().setServiceUuid(new ParcelUuid(HEART_RATE_SERVICE_UUID)).build());
 
-            scanning = true;
-            bluetoothLeScanner.startScan(scanCallback);
-        } else {
-            scanning = false;
-            bluetoothLeScanner.stopScan(scanCallback);
-        }
+        ScanSettings scanSettings = new ScanSettings.Builder()
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
+                .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
+                .build();
+
+        // Stops scanning after a pre-defined scan period.
+        backgroundThread.getHandler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                bluetoothLeScanner.stopScan(scanCallback);
+                heartrateDevicesSubject.onCompleted();
+            }
+        }, SCAN_PERIOD);
+
+        bluetoothLeScanner.startScan(scanFilters, scanSettings, scanCallback);
+
+        return heartrateDevicesSubject;
     }
 }

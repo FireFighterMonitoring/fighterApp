@@ -16,4 +16,8 @@ public class MainThread {
     public void post(Runnable runnable) {
         handler.post(runnable);
     }
+
+    public Handler getHandler() {
+        return handler;
+    }
 }

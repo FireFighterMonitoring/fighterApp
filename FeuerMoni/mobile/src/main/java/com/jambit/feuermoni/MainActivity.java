@@ -23,11 +23,12 @@ import android.widget.Toast;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.jambit.feuermoni.ble.BLEDiscovery;
-import com.jambit.feuermoni.ble.BluetoothDeviceWrapper;
+import com.jambit.feuermoni.ble.BluetoothDiscovery;
+import com.jambit.feuermoni.ble.HeartrateBluetoothDevice;
 import com.jambit.feuermoni.model.MonitoringStatus;
 import com.jambit.feuermoni.model.VitalSigns;
 import com.jambit.feuermoni.util.BackgroundThread;
+import com.jambit.feuermoni.util.MainThread;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,6 +41,10 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Action0;
+import rx.functions.Action1;
+import rx.schedulers.Schedulers;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -58,6 +63,7 @@ public class MainActivity extends AppCompatActivity {
     /** HTTP client */
     private final OkHttpClient client = new OkHttpClient();
 
+    private MainThread mainThread = new MainThread();
     private BackgroundThread backgroundThread = new BackgroundThread();
 
     /** TextView to change the ffId */
@@ -72,16 +78,16 @@ public class MainActivity extends AppCompatActivity {
     private View vitalSignsLayout;
     private TextView heartRateTextView;
     private TextView stepsTextView;
-    private Button sendMessageButton;
+    private Button searchBluetoothDevicesButton;
     private ListView devicesListView;
-    private ArrayAdapter<BluetoothDeviceWrapper> devicesArrayAdapter;
+    private ArrayAdapter<HeartrateBluetoothDevice> devicesArrayAdapter;
 
     private MonitoringStatus monitoringStatus;
 
     private ScheduledExecutorService scheduler;
     private WearableConnection wearableConnection;
 
-    private BLEDiscovery bluetoothDiscovery;
+    private BluetoothDiscovery bluetoothDiscovery;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -206,19 +212,46 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, aSensor.getName() + ": " + aSensor.getStringType());
         }
 
-        sendMessageButton = (Button) findViewById(R.id.send_message_button);
-        sendMessageButton.setOnClickListener(new View.OnClickListener() {
-            BackgroundThread thread = new BackgroundThread();
+        searchBluetoothDevicesButton = (Button) findViewById(R.id.send_message_button);
+        searchBluetoothDevicesButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                thread.post(new Runnable() {
+                searchBluetoothDevicesButton.setEnabled(false);
+                searchBluetoothDevicesButton.setText(R.string.searching);
+
+                backgroundThread.post(new Runnable() {
                     @Override
                     public void run() {
                         if (bluetoothDiscovery.requestLocationPermission(MainActivity.this)) {
                             if (!bluetoothDiscovery.isBluetoothAvailable()) {
                                 bluetoothDiscovery.requestBluetoothPermission(MainActivity.this);
+
+                                searchBluetoothDevicesButton.setEnabled(true);
+                                searchBluetoothDevicesButton.setText(R.string.search_bluetooth_devices);
                             } else {
-                                bluetoothDiscovery.scan(true);
+                                bluetoothDiscovery.scan()
+                                        .subscribeOn(Schedulers.io())
+                                        .observeOn(AndroidSchedulers.mainThread())
+                                        .subscribe(new Action1<BluetoothDevice>() {
+                                            @Override
+                                            public void call(BluetoothDevice bluetoothDevice) {
+                                                devicesArrayAdapter.add(new HeartrateBluetoothDevice(bluetoothDevice, MainActivity.this));
+                                            }
+                                        }, new Action1<Throwable>() {
+                                            @Override
+                                            public void call(Throwable throwable) {
+                                                Log.e(TAG, "Error observing heratrate devices! (" + throwable.getMessage() + ")");
+                                                searchBluetoothDevicesButton.setEnabled(true);
+                                                searchBluetoothDevicesButton.setText(R.string.search_bluetooth_devices);
+                                            }
+                                        }, new Action0() {
+                                            @Override
+                                            public void call() {
+                                                Log.d(TAG, "onCompleted() - BLE SCAN COMPLETE!");
+                                                searchBluetoothDevicesButton.setEnabled(true);
+                                                searchBluetoothDevicesButton.setText(R.string.search_bluetooth_devices);
+                                            }
+                                        });
                             }
                         }
                     }
@@ -232,19 +265,22 @@ public class MainActivity extends AppCompatActivity {
         devicesListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                BluetoothDeviceWrapper deviceWrapper = devicesArrayAdapter.getItem(position);
-                Log.d(TAG, "Item selected: " + deviceWrapper + " (position: " + position + ")");
-                deviceWrapper.connect();
+                HeartrateBluetoothDevice heartrateBluetoothDevice = devicesArrayAdapter.getItem(position);
+                Log.d(TAG, "Item selected: " + heartrateBluetoothDevice + " (position: " + position + ")");
+                heartrateBluetoothDevice.observeHeartrate()
+                        .subscribeOn(Schedulers.io())
+                        .subscribeOn(AndroidSchedulers.mainThread())
+                        .subscribe(new Action1<Integer>() {
+                            @Override
+                            public void call(Integer integer) {
+                                Log.d(TAG, "Observed new heart rate: " + integer);
+                            }
+                        });
             }
         });
 
-        bluetoothDiscovery = new BLEDiscovery(this);
-        bluetoothDiscovery.setListener(new BLEDiscovery.Listener() {
-            @Override
-            public void onDeviceDiscovered(BluetoothDevice device) {
-                devicesArrayAdapter.add(new BluetoothDeviceWrapper(device, MainActivity.this));
-            }
-        });
+
+        bluetoothDiscovery = new BluetoothDiscovery(this);
     }
 
     @Override

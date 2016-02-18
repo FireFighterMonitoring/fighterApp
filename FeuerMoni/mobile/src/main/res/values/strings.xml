@@ -6,4 +6,6 @@
     <string name="stop_monitoring">Stop monitoring</string>
     <string name="rate">Rate: %1$d</string>
     <string name="steps">Steps: %1$d</string>
+    <string name="search_bluetooth_devices">Search bluetooth devices</string>
+    <string name="searching">Searching...</string>
 </resources>
