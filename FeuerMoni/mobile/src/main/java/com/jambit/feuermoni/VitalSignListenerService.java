@@ -15,12 +15,14 @@ public class VitalSignListenerService extends WearableListenerService {
     @Override
     public void onCreate() {
         super.onCreate();
+
         Log.d(TAG, "onCreate()");
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
+
         Log.d(TAG, "onDestroy()");
     }
 

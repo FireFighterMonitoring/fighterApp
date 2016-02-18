@@ -1,13 +1,10 @@
 package com.jambit.feuermoni;
 
-import android.app.NotificationManager;
 import android.content.Context;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.hardware.TriggerEvent;
-import android.hardware.TriggerEventListener;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -67,7 +64,6 @@ public class VitalSignMonitor {
             @Override
             public void onSensorChanged(SensorEvent event) {
                 heartrate = event.values[0];
-                Log.d(TAG, "heart rate value received: " + heartrate);
 
                 if (areSensorsActive) {
                     executorService.execute(new Runnable() {
@@ -114,7 +110,6 @@ public class VitalSignMonitor {
         Log.d(TAG, "startMonitoring()");
 
         startSensors();
-
     }
 
     public void stopMonitoring() {
@@ -154,7 +149,6 @@ public class VitalSignMonitor {
             }
         });
     }
-
 
     private void connectApiClient() {
         googleApiClient = new GoogleApiClient.Builder(context)
