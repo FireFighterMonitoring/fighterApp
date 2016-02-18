@@ -8,7 +8,7 @@
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
     android:orientation="vertical"
-    tools:context="com.jambit.feuermoni.MainActivity">
+    tools:context=".MainActivity">
 
     <EditText
         android:layout_width="match_parent"
@@ -48,5 +48,13 @@
             android:layout_height="wrap_content"
             android:id="@+id/steps_textview"/>
     </LinearLayout>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Send message"
+        android:id="@+id/send_message_button"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"/>
 
 </LinearLayout>

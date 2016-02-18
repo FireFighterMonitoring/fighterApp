@@ -17,22 +17,14 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.wearable.DataMap;
-import com.google.android.gms.wearable.MessageApi;
-import com.google.android.gms.wearable.MessageEvent;
-import com.google.android.gms.wearable.Wearable;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.jambit.feuermoni.common.DataMapKeys;
 import com.jambit.feuermoni.model.MonitoringStatus;
 import com.jambit.feuermoni.model.VitalSigns;
 import com.jambit.feuermoni.util.BackgroundThread;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -43,7 +35,7 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
-public class MainActivity extends AppCompatActivity implements MessageApi.MessageListener {
+public class MainActivity extends AppCompatActivity {
 
     /** The tag used for logging. */
     private static final String TAG = MainActivity.class.getSimpleName();
@@ -53,18 +45,14 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     /** Media Type used for POST requests */
     private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
 
-    private static final String BASE_URL = "http://192.168.232.112:8080/api/v1";
+    //private static final String BASE_URL = "http://192.168.232.112:8080/api/v1";
+    private static final String BASE_URL = "http://192.168.178.144:3000";
     private static final String REST_PATH_DATA = "/data";
 
     /** HTTP client */
     private final OkHttpClient client = new OkHttpClient();
 
     private BackgroundThread backgroundThread = new BackgroundThread();
-
-    /** Google API client, used to connect to Wearable devices... */
-    private GoogleApiClient apiClient;
-
-    private ExecutorService executorService;
 
     /** TextView to change the ffId */
     private EditText ffidTextView;
@@ -78,28 +66,104 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     private View vitalSignsLayout;
     private TextView heartRateTextView;
     private TextView stepsTextView;
+    private Button sendMessageButton;
 
     private MonitoringStatus monitoringStatus;
 
-    /** Holds the "state" */
-    private int currentMessageValue = 0;
-
     private ScheduledExecutorService scheduler;
+    private WearableConnection wearableConnection;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        wearableConnection = new WearableConnection(getApplicationContext());
+        wearableConnection.setListener(new WearableConnection.Listener() {
+            @Override
+            public void onConnectionEstablished() {
+                Log.d(TAG, "onConnectionEstablished()");
+                monitoringStatus.status = MonitoringStatus.Status.OK;
+
+                loginButton.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        vitalSignsLayout.setVisibility(View.VISIBLE);
+                        startMonitoringButton.setText(R.string.stop_monitoring);
+                    }
+                });
+            }
+
+            @Override
+            public void onConnectionLost() {
+                Log.d(TAG, "onConnectionLost()");
+                monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
+                monitoringStatus.vitalSigns = null;
+            }
+
+            @Override
+            public void onConnectionFailed() {
+                Log.d(TAG, "onConnectionFailed()");
+                monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
+                monitoringStatus.vitalSigns = null;
+            }
+
+            @Override
+            public void onVitalSignsReceived(final VitalSigns vitalSigns) {
+                Log.d(TAG, "onVitalSignsReceived()");
+
+                heartRateTextView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        heartRateTextView.setText(String.format(getString(R.string.rate), (int) vitalSigns.heartRate));
+                    }
+                });
+
+                stepsTextView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        stepsTextView.setText(String.format(getString(R.string.steps), (int) vitalSigns.stepCount));
+                    }
+                });
+
+                if (monitoringStatus == null) {
+                    Log.e(TAG, "Data was received from wearable but monitoring status is null - this shouldn't happen!");
+                    return;
+                }
+
+                monitoringStatus.vitalSigns = vitalSigns;
+            }
+        });
+
         startMonitoringButton = (Button) findViewById(R.id.start_monitoring_button);
         startMonitoringButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Log.d(TAG, "Connect Watch button pressed!");
-                if (apiClient == null) {
-                    openWearableConnection();
+                if (wearableConnection.isConnected()) {
+                    wearableConnection.disconnect();
+                    loginButton.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            vitalSignsLayout.setVisibility(View.GONE);
+                            startMonitoringButton.setText(R.string.start_monitoring);
+                        }
+                    });
                 } else {
-                    closeWearableConnection();
+                    if (monitoringStatus == null) {
+                        Log.e(TAG, "ERROR: Are you logged in?");
+                        return;
+                    }
+
+                    if (!hasBodySensorsPermission(MainActivity.this)) {
+                        Log.e(TAG, "Cannot access body sensors!");
+                        requestBodySensorsPermission(MainActivity.this);
+                        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
+                        monitoringStatus.vitalSigns = null;
+                        return;
+                    }
+
+                    wearableConnection.connect();
                 }
             }
         });
@@ -131,6 +195,20 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
         for (Sensor aSensor : sensors) {
             Log.d(TAG, aSensor.getName() + ": " + aSensor.getStringType());
         }
+
+        sendMessageButton = (Button) findViewById(R.id.send_message_button);
+        sendMessageButton.setOnClickListener(new View.OnClickListener() {
+            BackgroundThread thread = new BackgroundThread();
+            @Override
+            public void onClick(View v) {
+                thread.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        wearableConnection.broadcastMessagePath("TOBITEST");
+                    }
+                });
+            }
+        });
     }
 
     @Override
@@ -157,36 +235,6 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
 
             // other 'case' lines to check for other permissions this app might request
         }
-    }
-
-    @Override
-    public void onMessageReceived(MessageEvent messageEvent) {
-        DataMap dataMap = DataMap.fromByteArray(messageEvent.getData());
-        final float heartrate = dataMap.getFloat(DataMapKeys.HEARTRATE_KEY);
-        final float steps = dataMap.getFloat(DataMapKeys.STEPCOUNT_KEY);
-
-        Log.d(TAG, "A message has been received! heartrate: " + heartrate + " steps: " + steps);
-
-        heartRateTextView.post(new Runnable() {
-            @Override
-            public void run() {
-                heartRateTextView.setText(String.format(getString(R.string.rate), (int) heartrate));
-            }
-        });
-
-        stepsTextView.post(new Runnable() {
-            @Override
-            public void run() {
-                stepsTextView.setText(String.format(getString(R.string.steps), (int) steps));
-            }
-        });
-
-        if (monitoringStatus == null) {
-            Log.e(TAG, "Data was received from wearable but monitoring status is null - this shouldn't happen!");
-            return;
-        }
-
-        monitoringStatus.vitalSigns = new VitalSigns((int) heartrate, (int) steps);
     }
 
     /**
@@ -283,7 +331,7 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
     }
 
     private void logout() {
-        closeWearableConnection();
+        wearableConnection.disconnect();
         stopScheduler();
 
         monitoringStatus.status = MonitoringStatus.Status.DISCONNECTED;
@@ -294,78 +342,11 @@ public class MainActivity extends AppCompatActivity implements MessageApi.Messag
             public void run() {
                 ffidTextView.setEnabled(false);
                 loginButton.setText(R.string.login);
+                loginButton.setEnabled(true);
 
                 vitalSignsLayout.setVisibility(View.GONE);
                 startMonitoringButton.setVisibility(View.GONE);
             }
         });
-    }
-
-
-    /**
-     * Opens the connection to a wearable device.
-     */
-    private void openWearableConnection() {
-        if (monitoringStatus == null) {
-            Log.e(TAG, "ERROR: Are you logged in?");
-            return;
-        }
-
-        if (!hasBodySensorsPermission(this)) {
-            Log.e(TAG, "Cannot access body sensors!");
-            requestBodySensorsPermission(this);
-            monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
-            monitoringStatus.vitalSigns = null;
-            return;
-        }
-
-        apiClient = new GoogleApiClient.Builder(this)
-                .addApi(Wearable.API)
-                .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
-                    public void onConnected(Bundle bundle) {
-                        Log.d(TAG, "onConnected()...");
-                        monitoringStatus.status = MonitoringStatus.Status.OK;
-
-                        loginButton.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                vitalSignsLayout.setVisibility(View.VISIBLE);
-                                startMonitoringButton.setText(R.string.stop_monitoring);
-                            }
-                        });
-                    }
-
-                    public void onConnectionSuspended(int i) {
-                        Log.d(TAG, "ConnectionCallback onConnectionSuspended");
-                        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
-                        monitoringStatus.vitalSigns = null;
-                    }
-                })
-                .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
-                    public void onConnectionFailed(ConnectionResult connectionResult) {
-                        Log.d(TAG, "ConnectionCallback onConnectionFailed");
-                        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
-                        monitoringStatus.vitalSigns = null;
-                    }
-                }).build();
-        apiClient.connect();
-
-        Wearable.MessageApi.addListener(apiClient, this);
-    }
-
-    private void closeWearableConnection() {
-        loginButton.post(new Runnable() {
-            @Override
-            public void run() {
-                vitalSignsLayout.setVisibility(View.GONE);
-                startMonitoringButton.setText(R.string.start_monitoring);
-            }
-        });
-
-        apiClient.disconnect();
-        apiClient = null;
-
-        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
-        monitoringStatus.vitalSigns = null;
     }
 }
