@@ -6,6 +6,8 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.hardware.TriggerEvent;
+import android.hardware.TriggerEventListener;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -45,6 +47,8 @@ public class VitalSignMonitor {
     /** Access to the googleApiClient is synchronized through this executor. */
     private ExecutorService executorService;
 
+    private static boolean areSensorsActive = false;
+
     public VitalSignMonitor(Context context) {
         this.context = context;
 
@@ -52,9 +56,6 @@ public class VitalSignMonitor {
         heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE);
         if(heartRateSensor == null) {
             Log.d(TAG, "heart rate sensor is null");
-        } else {
-            Log.d(TAG, " HRM minDelay: " + heartRateSensor.getMinDelay() + " max: " + heartRateSensor.getMaxDelay());
-            Log.d(TAG, " HRM reportingMode: " + heartRateSensor.getReportingMode());
         }
 
         stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
@@ -66,12 +67,20 @@ public class VitalSignMonitor {
             @Override
             public void onSensorChanged(SensorEvent event) {
                 heartrate = event.values[0];
-                executorService.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        sendUpdate();
-                    }
-                });
+                Log.d(TAG, "heart rate value received: " + heartrate);
+
+                if (areSensorsActive) {
+                    executorService.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            sendUpdate();
+                        }
+                    });
+                } else {
+                    // If sensors are stopped but updates are still coming, stop sensors again (make sure :
+                    // http://stackoverflow.com/questions/24239949/android-sensor-listener-does-not-get-unregistered-or-sensor-still-retrieves-valu
+                    stopSensors();
+                }
             }
 
             @Override
@@ -104,15 +113,8 @@ public class VitalSignMonitor {
     public void startMonitoring() {
         Log.d(TAG, "startMonitoring()");
 
-        executorService.execute(new Runnable() {
-            @Override
-            public void run() {
-                connectApiClient();
+        startSensors();
 
-                sensorManager.registerListener(heartRateListener, heartRateSensor, SensorManager.SENSOR_DELAY_NORMAL);
-                sensorManager.registerListener(stepCounterListener, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
-            }
-        });
     }
 
     public void stopMonitoring() {
@@ -123,11 +125,30 @@ public class VitalSignMonitor {
             return;
         }
 
+        stopSensors();
+    }
+
+    private void startSensors() {
         executorService.execute(new Runnable() {
             @Override
             public void run() {
+                connectApiClient();
+
+                areSensorsActive = true;
+                sensorManager.registerListener(heartRateListener, heartRateSensor, 1000000);
+                sensorManager.registerListener(stepCounterListener, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
+            }
+        });
+    }
+
+    private void stopSensors() {
+        executorService.execute(new Runnable() {
+            @Override
+            public void run() {
+                Log.d(TAG, "Unregister listener...");
                 sensorManager.unregisterListener(heartRateListener);
                 sensorManager.unregisterListener(stepCounterListener);
+                areSensorsActive = false;
 
                 disconnectApiClient();
             }
@@ -160,15 +181,15 @@ public class VitalSignMonitor {
     }
 
     private void disconnectApiClient() {
+        if (googleApiClient == null) {
+            return;
+        }
         googleApiClient.disconnect();
         googleApiClient = null;
     }
 
     private void sendUpdate() {
-//        Log.v(TAG, "In sendUpdate() - heart rate: " + heartrate + " steps: " + steps);
-
         if (googleApiClient == null || !googleApiClient.isConnected()) {
-//            Log.d(TAG, "API client has been disconnected in the meantime...");
             return;
         }
 

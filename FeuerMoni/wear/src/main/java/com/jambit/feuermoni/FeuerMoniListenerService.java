@@ -13,8 +13,8 @@ import com.jambit.feuermoni.common.DataMapKeys;
 /**
  * Created by tschroep on 16.02.16.
  */
-public class MyWearableListenerService extends WearableListenerService {
-    private String TAG = MyWearableListenerService.class.getSimpleName();
+public class FeuerMoniListenerService extends WearableListenerService {
+    private String TAG = FeuerMoniListenerService.class.getSimpleName();
 
     private static final int NOTIFICATION_ID = 100;
 
