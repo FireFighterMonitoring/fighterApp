@@ -45,8 +45,8 @@ public class MainActivity extends AppCompatActivity {
     /** Media Type used for POST requests */
     private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
 
-    //private static final String BASE_URL = "http://192.168.232.112:8080/api/v1";
-    private static final String BASE_URL = "http://192.168.178.144:3000";
+    private static final String BASE_URL = "http://192.168.234.222:8080/api/v1";
+//    private static final String BASE_URL = "http://192.168.178.144:3000";
     private static final String REST_PATH_DATA = "/data";
 
     /** HTTP client */
