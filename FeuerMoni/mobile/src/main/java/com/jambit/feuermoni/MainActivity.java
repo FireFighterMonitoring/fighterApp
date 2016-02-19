@@ -41,6 +41,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import rx.Subscriber;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action0;
 import rx.functions.Action1;
@@ -63,7 +64,6 @@ public class MainActivity extends AppCompatActivity {
     /** HTTP client */
     private final OkHttpClient client = new OkHttpClient();
 
-    private MainThread mainThread = new MainThread();
     private BackgroundThread backgroundThread = new BackgroundThread();
 
     /** TextView to change the ffId */
@@ -232,24 +232,24 @@ public class MainActivity extends AppCompatActivity {
                                 bluetoothDiscovery.scan()
                                         .subscribeOn(Schedulers.io())
                                         .observeOn(AndroidSchedulers.mainThread())
-                                        .subscribe(new Action1<BluetoothDevice>() {
+                                        .subscribe(new Subscriber<BluetoothDevice>() {
                                             @Override
-                                            public void call(BluetoothDevice bluetoothDevice) {
-                                                devicesArrayAdapter.add(new HeartrateBluetoothDevice(bluetoothDevice, MainActivity.this));
-                                            }
-                                        }, new Action1<Throwable>() {
-                                            @Override
-                                            public void call(Throwable throwable) {
-                                                Log.e(TAG, "Error observing heratrate devices! (" + throwable.getMessage() + ")");
-                                                searchBluetoothDevicesButton.setEnabled(true);
-                                                searchBluetoothDevicesButton.setText(R.string.search_bluetooth_devices);
-                                            }
-                                        }, new Action0() {
-                                            @Override
-                                            public void call() {
+                                            public void onCompleted() {
                                                 Log.d(TAG, "onCompleted() - BLE SCAN COMPLETE!");
                                                 searchBluetoothDevicesButton.setEnabled(true);
                                                 searchBluetoothDevicesButton.setText(R.string.search_bluetooth_devices);
+                                            }
+
+                                            @Override
+                                            public void onError(Throwable e) {
+                                                Log.e(TAG, "Error observing heratrate devices! (" + e.getMessage() + ")");
+                                                searchBluetoothDevicesButton.setEnabled(true);
+                                                searchBluetoothDevicesButton.setText(R.string.search_bluetooth_devices);
+                                            }
+
+                                            @Override
+                                            public void onNext(BluetoothDevice bluetoothDevice) {
+                                                devicesArrayAdapter.add(new HeartrateBluetoothDevice(bluetoothDevice, MainActivity.this));
                                             }
                                         });
                             }
