@@ -49,9 +49,9 @@ public class HeartrateBluetoothDevice {
                     deviceGatt = gatt;
                     Log.i(TAG, "Connected to GATT server.");
                     Log.i(TAG, "Attempting to start service discovery:" + gatt.discoverServices());
-
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     Log.i(TAG, "Disconnected from GATT server.");
+                    heartrateSubject.onError(new Throwable("Lost connection to DEVICE!"));
                 }
             }
 
@@ -123,6 +123,10 @@ public class HeartrateBluetoothDevice {
         if (heartrateSubject != null) {
             heartrateSubject.onCompleted();
         }
+    }
+
+    public String getName() {
+        return device.getName();
     }
 
     @Override

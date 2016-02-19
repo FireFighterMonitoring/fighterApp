@@ -9,7 +9,7 @@ import android.support.annotation.Nullable;
 import android.util.Log;
 
 import rx.Observable;
-import rx.functions.Action1;
+import rx.Subscriber;
 import rx.schedulers.Schedulers;
 import rx.subjects.PublishSubject;
 
@@ -17,6 +17,9 @@ import rx.subjects.PublishSubject;
  * Created by tschroep on 19.02.16.
  */
 public class MonitoringService extends Service {
+    public enum SensorStatus {
+        CONNECTED, DISCONNECTED;
+    }
 
     private static final String TAG = MonitoringService.class.getSimpleName();
 
@@ -25,6 +28,7 @@ public class MonitoringService extends Service {
     private HeartrateBluetoothDevice observedHeartrateDevice;
 
     public final PublishSubject<Integer> heartrateObservable = PublishSubject.create();
+    public final PublishSubject<SensorStatus> heartrateSensorStatusObservable = PublishSubject.create();
 
     /**
      * Class used for the client Binder.  Because we know this service always
@@ -63,16 +67,32 @@ public class MonitoringService extends Service {
         return bluetoothDiscovery.scan();
     }
 
-    public void observeHeartrate(HeartrateBluetoothDevice heartrateBluetoothDevice) {
+    public void observeHeartrate(final HeartrateBluetoothDevice heartrateBluetoothDevice) {
+        if (observedHeartrateDevice != null) {
+            heartrateBluetoothDevice.stopObservingHeartrate();
+        }
 
-        heartrateBluetoothDevice.stopObservingHeartrate();
+        heartrateSensorStatusObservable.onNext(SensorStatus.CONNECTED);
 
+        observedHeartrateDevice = heartrateBluetoothDevice;
         heartrateBluetoothDevice.observeHeartrate()
                 .subscribeOn(Schedulers.io())
-                .subscribe(new Action1<Integer>() {
+                .subscribe(new Subscriber<Integer>() {
                     @Override
-                    public void call(Integer heartrate) {
-                        heartrateObservable.onNext(heartrate);
+                    public void onCompleted() {
+                        Log.d(TAG, "observing the device: " + heartrateBluetoothDevice.getName() + " has completed!");
+                        heartrateSensorStatusObservable.onNext(SensorStatus.DISCONNECTED);
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        Log.e(TAG, "error occurred! observing the device: " + heartrateBluetoothDevice.getName() + " has completed!");
+                        heartrateSensorStatusObservable.onNext(SensorStatus.DISCONNECTED);
+                    }
+
+                    @Override
+                    public void onNext(Integer integer) {
+                        heartrateObservable.onNext(integer);
                     }
                 });
     }

@@ -54,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
     /** Media Type used for POST requests */
     private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
 
-    private static final String BASE_URL = "http://192.168.234.222:8080/api/v1";
+    private static final String BASE_URL = "http://192.168.232.99:8080/api/v1";
 //    private static final String BASE_URL = "http://192.168.178.144:3000";
     private static final String REST_PATH_DATA = "/data";
 
@@ -100,14 +100,28 @@ public class MainActivity extends AppCompatActivity {
 
             monitoringService.heartrateObservable
                     .subscribeOn(Schedulers.io())
-                    .subscribeOn(AndroidSchedulers.mainThread())
+                    .observeOn(AndroidSchedulers.mainThread())
                     .subscribe(new Action1<Integer>() {
                         @Override
                         public void call(Integer integer) {
                             Log.d(TAG, "Observed new heart rate: " + integer);
 
                             if (monitoringStatus != null) {
-                                monitoringStatus.setVitalSigns(new VitalSigns(integer, 0));
+                                monitoringStatus.setVitalSigns(new VitalSigns(integer, -1));
+                            }
+                        }
+                    });
+
+            monitoringService.heartrateSensorStatusObservable
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(new Action1<MonitoringService.SensorStatus>() {
+                        @Override
+                        public void call(MonitoringService.SensorStatus sensorStatus) {
+                            if (sensorStatus == MonitoringService.SensorStatus.DISCONNECTED) {
+                                if (monitoringStatus != null) {
+                                    monitoringStatus.setVitalSigns(null);
+                                }
                             }
                         }
                     });
