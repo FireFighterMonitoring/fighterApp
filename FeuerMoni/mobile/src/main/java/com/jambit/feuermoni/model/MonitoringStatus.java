@@ -51,4 +51,20 @@ public class MonitoringStatus {
 
         this.vitalSigns = vitalSigns;
     }
+
+    public void updateHeartRate(int heartrate) {
+        if (vitalSigns != null) {
+            vitalSigns.heartRate = heartrate;
+        } else {
+            setVitalSigns(new VitalSigns(heartrate, -1));
+        }
+    }
+
+    public void updateSteps(int steps) {
+        if (vitalSigns != null) {
+            vitalSigns.stepCount = steps;
+        } else {
+            setVitalSigns(new VitalSigns(-1, steps));
+        }
+    }
 }

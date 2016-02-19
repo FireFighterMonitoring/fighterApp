@@ -2,8 +2,8 @@
     <string name="app_name">FeuerMoni</string>
     <string name="login">Login</string>
     <string name="logout">Logout</string>
-    <string name="start_monitoring">Start monitoring</string>
-    <string name="stop_monitoring">Stop monitoring</string>
+    <string name="start_monitoring_watch">Start monitoring watch</string>
+    <string name="stop_monitoring_watch">Stop monitoring watch</string>
     <string name="rate">Rate: %1$d</string>
     <string name="steps">Steps: %1$d</string>
     <string name="search_bluetooth_devices">Search bluetooth devices</string>

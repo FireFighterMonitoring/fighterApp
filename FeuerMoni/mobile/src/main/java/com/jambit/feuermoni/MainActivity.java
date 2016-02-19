@@ -54,8 +54,7 @@ public class MainActivity extends AppCompatActivity {
     /** Media Type used for POST requests */
     private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
 
-    private static final String BASE_URL = "http://192.168.232.99:8080/api/v1";
-//    private static final String BASE_URL = "http://192.168.178.144:3000";
+    private static final String BASE_URL = "http://192.168.232.112:8080/api/v1";
     private static final String REST_PATH_DATA = "/data";
 
     /** HTTP client */
@@ -72,7 +71,6 @@ public class MainActivity extends AppCompatActivity {
     /** Button to login to the FeuerMoni backend service. */
     private Button loginButton;
 
-    private View vitalSignsLayout;
     private TextView heartRateTextView;
     private TextView stepsTextView;
     private Button searchBluetoothDevicesButton;
@@ -107,8 +105,10 @@ public class MainActivity extends AppCompatActivity {
                             Log.d(TAG, "Observed new heart rate: " + integer);
 
                             if (monitoringStatus != null) {
-                                monitoringStatus.setVitalSigns(new VitalSigns(integer, -1));
+                                monitoringStatus.updateHeartRate(integer);
                             }
+
+                            updateHeartrate(integer);
                         }
                     });
 
@@ -148,8 +148,7 @@ public class MainActivity extends AppCompatActivity {
                 loginButton.post(new Runnable() {
                     @Override
                     public void run() {
-                        vitalSignsLayout.setVisibility(View.VISIBLE);
-                        startMonitoringButton.setText(R.string.stop_monitoring);
+                        startMonitoringButton.setText(R.string.stop_monitoring_watch);
                     }
                 });
             }
@@ -176,12 +175,7 @@ public class MainActivity extends AppCompatActivity {
             public void onVitalSignsReceived(final VitalSigns vitalSigns) {
                 Log.d(TAG, "onVitalSignsReceived()");
 
-                heartRateTextView.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        heartRateTextView.setText(String.format(getString(R.string.rate), (int) vitalSigns.heartRate));
-                    }
-                });
+                updateHeartrate(vitalSigns.heartRate);
 
                 stepsTextView.post(new Runnable() {
                     @Override
@@ -195,7 +189,8 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
 
-                monitoringStatus.setVitalSigns(vitalSigns);
+                monitoringStatus.updateHeartRate(vitalSigns.heartRate);
+                monitoringStatus.updateSteps(vitalSigns.stepCount);
             }
         });
 
@@ -209,8 +204,7 @@ public class MainActivity extends AppCompatActivity {
                     loginButton.post(new Runnable() {
                         @Override
                         public void run() {
-                            vitalSignsLayout.setVisibility(View.GONE);
-                            startMonitoringButton.setText(R.string.start_monitoring);
+                            startMonitoringButton.setText(R.string.start_monitoring_watch);
                         }
                     });
                 } else {
@@ -232,7 +226,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         ffidTextView = (EditText) findViewById(R.id.ffid_textview);
-        vitalSignsLayout = findViewById(R.id.vital_signs_layout);
         heartRateTextView = (TextView) findViewById(R.id.heartrate_textview);
         stepsTextView = (TextView) findViewById(R.id.steps_textview);
         loginButton = (Button) findViewById(R.id.login_button);
@@ -376,6 +369,15 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void updateHeartrate(final int heartRate) {
+        heartRateTextView.post(new Runnable() {
+            @Override
+            public void run() {
+                heartRateTextView.setText(String.format(getString(R.string.rate), heartRate));
+            }
+        });
+    }
+
     private void isScanning(boolean isScanning) {
         searchBluetoothDevicesButton.setEnabled(!isScanning);
         searchBluetoothDevicesButton.setText(isScanning ? R.string.searching : R.string.search_bluetooth_devices);
@@ -444,7 +446,6 @@ public class MainActivity extends AppCompatActivity {
         ffidTextView.setEnabled(false);
         loginButton.setText(R.string.logout);
 
-        vitalSignsLayout.setVisibility(View.VISIBLE);
         startMonitoringButton.setVisibility(View.VISIBLE);
 
         scheduler = Executors.newScheduledThreadPool(1);
@@ -477,7 +478,6 @@ public class MainActivity extends AppCompatActivity {
                 loginButton.setText(R.string.login);
                 loginButton.setEnabled(true);
 
-                vitalSignsLayout.setVisibility(View.GONE);
                 startMonitoringButton.setVisibility(View.GONE);
             }
         });
