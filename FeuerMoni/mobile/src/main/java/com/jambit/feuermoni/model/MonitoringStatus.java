@@ -33,10 +33,20 @@ public class MonitoringStatus {
     public Status status;
 
     /** Last konwn vital sign values. */
-    public VitalSigns vitalSigns;
+    private VitalSigns vitalSigns;
 
     public MonitoringStatus(String ffId) {
         this.ffId = ffId;
         this.status = Status.NO_DATA;
+    }
+
+    public void setVitalSigns(VitalSigns vitalSigns) {
+        if (vitalSigns == null) {
+            status = Status.NO_DATA;
+        } else {
+            status = Status.OK;
+        }
+
+        this.vitalSigns = vitalSigns;
     }
 }

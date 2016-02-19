@@ -107,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
                             Log.d(TAG, "Observed new heart rate: " + integer);
 
                             if (monitoringStatus != null) {
-                                monitoringStatus.vitalSigns = new VitalSigns(integer, -1);
+                                monitoringStatus.setVitalSigns(new VitalSigns(integer, 0));
                             }
                         }
                     });
@@ -130,7 +130,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onConnectionEstablished() {
                 Log.d(TAG, "onConnectionEstablished()");
-                monitoringStatus.status = MonitoringStatus.Status.OK;
 
                 loginButton.post(new Runnable() {
                     @Override
@@ -144,15 +143,13 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onConnectionLost() {
                 Log.d(TAG, "onConnectionLost()");
-                monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
-                monitoringStatus.vitalSigns = null;
+                monitoringStatus.setVitalSigns(null);
             }
 
             @Override
             public void onConnectionFailed() {
                 Log.d(TAG, "onConnectionFailed()");
-                monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
-                monitoringStatus.vitalSigns = null;
+                monitoringStatus.setVitalSigns(null);
             }
 
             @Override
@@ -178,7 +175,7 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
 
-                monitoringStatus.vitalSigns = vitalSigns;
+                monitoringStatus.setVitalSigns(vitalSigns);
             }
         });
 
@@ -205,8 +202,7 @@ public class MainActivity extends AppCompatActivity {
                     if (!PermissionHelper.hasBodySensorsPermission(MainActivity.this)) {
                         Log.e(TAG, "Cannot access body sensors!");
                         PermissionHelper.requestBodySensorsPermission(MainActivity.this);
-                        monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
-                        monitoringStatus.vitalSigns = null;
+                        monitoringStatus.setVitalSigns(null);
                         return;
                     }
 
@@ -386,7 +382,7 @@ public class MainActivity extends AppCompatActivity {
                     response = client.newCall(request).execute();
 
                     if (!response.isSuccessful()) {
-                        Log.e(TAG, "REQUEST FAILED!");
+                        Log.e(TAG, "REQUEST FAILED! (CODE: " + response.code() + " - " + response.body().string());
                     } else {
                         try {
                             Log.d(TAG, response.body().string());
@@ -442,6 +438,7 @@ public class MainActivity extends AppCompatActivity {
         wearableConnection.disconnect();
         stopScheduler();
 
+        monitoringStatus.setVitalSigns(null);
         monitoringStatus.status = MonitoringStatus.Status.DISCONNECTED;
         postStatus(monitoringStatus);
 
