@@ -1,7 +1,5 @@
 package com.jambit.feuermoni;
 
-import android.Manifest;
-import android.app.Activity;
 import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
 import android.content.Context;
@@ -10,11 +8,9 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
-import android.os.IBinder;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
@@ -27,8 +23,8 @@ import android.widget.Toast;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.jambit.feuermoni.ble.MonitoringService;
 import com.jambit.feuermoni.ble.HeartrateBluetoothDevice;
+import com.jambit.feuermoni.ble.MonitoringService;
 import com.jambit.feuermoni.model.MonitoringStatus;
 import com.jambit.feuermoni.model.VitalSigns;
 import com.jambit.feuermoni.util.BackgroundThread;
@@ -54,8 +50,6 @@ public class MainActivity extends AppCompatActivity {
 
     /** The tag used for logging. */
     private static final String TAG = MainActivity.class.getSimpleName();
-
-    private static final int MY_PERMISSIONS_REQUEST_BODY_SENSORS = 42;
 
     /** Media Type used for POST requests */
     private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
@@ -103,6 +97,20 @@ public class MainActivity extends AppCompatActivity {
             MonitoringService.MonitoringServiceBinder binder = (MonitoringService.MonitoringServiceBinder) service;
             monitoringService = binder.getService();
             isBoundToServie = true;
+
+            monitoringService.heartrateObservable
+                    .subscribeOn(Schedulers.io())
+                    .subscribeOn(AndroidSchedulers.mainThread())
+                    .subscribe(new Action1<Integer>() {
+                        @Override
+                        public void call(Integer integer) {
+                            Log.d(TAG, "Observed new heart rate: " + integer);
+
+                            if (monitoringStatus != null) {
+                                monitoringStatus.vitalSigns = new VitalSigns(integer, -1);
+                            }
+                        }
+                    });
         }
 
         @Override
@@ -194,9 +202,9 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     }
 
-                    if (!hasBodySensorsPermission(MainActivity.this)) {
+                    if (!PermissionHelper.hasBodySensorsPermission(MainActivity.this)) {
                         Log.e(TAG, "Cannot access body sensors!");
-                        requestBodySensorsPermission(MainActivity.this);
+                        PermissionHelper.requestBodySensorsPermission(MainActivity.this);
                         monitoringStatus.status = MonitoringStatus.Status.NO_DATA;
                         monitoringStatus.vitalSigns = null;
                         return;
@@ -291,17 +299,14 @@ public class MainActivity extends AppCompatActivity {
         devicesListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                if (!isBoundToServie) {
+                    Toast.makeText(MainActivity.this, "Monitoring service is not bound!", Toast.LENGTH_LONG);
+                    return;
+                }
+
                 HeartrateBluetoothDevice heartrateBluetoothDevice = devicesArrayAdapter.getItem(position);
                 Log.d(TAG, "Item selected: " + heartrateBluetoothDevice + " (position: " + position + ")");
-                heartrateBluetoothDevice.observeHeartrate()
-                        .subscribeOn(Schedulers.io())
-                        .subscribeOn(AndroidSchedulers.mainThread())
-                        .subscribe(new Action1<Integer>() {
-                            @Override
-                            public void call(Integer integer) {
-                                Log.d(TAG, "Observed new heart rate: " + integer);
-                            }
-                        });
+                monitoringService.observeHeartrate(heartrateBluetoothDevice);
             }
         });
     }
@@ -338,7 +343,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
         switch (requestCode) {
-            case MY_PERMISSIONS_REQUEST_BODY_SENSORS: {
+            case PermissionHelper.REQUEST_BODY_SENSORS_PERMISSION: {
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     Log.d(TAG, "BODY_SENSORS permission was granted!");
@@ -394,25 +399,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-    }
-
-    private boolean hasBodySensorsPermission(Context context) {
-        return ContextCompat.checkSelfPermission(context, Manifest.permission.BODY_SENSORS) == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void requestBodySensorsPermission(Activity activity) {
-        // Here, thisActivity is the current activity
-        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.BODY_SENSORS) != PackageManager.PERMISSION_GRANTED) {
-
-            // Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.BODY_SENSORS)) {
-                Toast.makeText(activity, "I need permission to access body sensors!", Toast.LENGTH_LONG).show();
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BODY_SENSORS}, MY_PERMISSIONS_REQUEST_BODY_SENSORS);
-            } else {
-                // No explanation needed, we can request the permission.
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BODY_SENSORS}, MY_PERMISSIONS_REQUEST_BODY_SENSORS);
-            }
-        }
     }
 
     private void stopScheduler() {

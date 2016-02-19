@@ -15,8 +15,10 @@ import android.widget.Toast;
  * Created by tschroep on 19.02.16.
  */
 public class PermissionHelper {
-    private static final int REQUEST_ENABLE_BT = 0;
-    private static final int REQUEST_LOACTION_PERMISSION = 1;
+
+    public static final int REQUEST_ENABLE_BT = 0;
+    public static final int REQUEST_LOACTION_PERMISSION = 1;
+    public static final int REQUEST_BODY_SENSORS_PERMISSION = 2;
 
     /** Static class -> hide constructor... */
     private PermissionHelper() {
@@ -57,6 +59,25 @@ public class PermissionHelper {
             return false;
         } else {
             return true;
+        }
+    }
+
+    public static boolean hasBodySensorsPermission(Context context) {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.BODY_SENSORS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    public static void requestBodySensorsPermission(Activity activity) {
+        // Here, thisActivity is the current activity
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.BODY_SENSORS) != PackageManager.PERMISSION_GRANTED) {
+
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BODY_SENSORS)) {
+                Toast.makeText(activity, "I need permission to access body sensors!", Toast.LENGTH_LONG).show();
+                ActivityCompat.requestPermissions(activity, new String[]{Manifest.permission.BODY_SENSORS}, REQUEST_BODY_SENSORS_PERMISSION);
+            } else {
+                // No explanation needed, we can request the permission.
+                ActivityCompat.requestPermissions(activity, new String[]{Manifest.permission.BODY_SENSORS}, REQUEST_BODY_SENSORS_PERMISSION);
+            }
         }
     }
 }

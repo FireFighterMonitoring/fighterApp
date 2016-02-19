@@ -24,6 +24,8 @@ public class HeartrateBluetoothDevice {
     private final BluetoothDevice device;
     private final Context context;
 
+    private PublishSubject<Integer> heartrateSubject;
+
     private BluetoothGatt deviceGatt;
     private BluetoothGattCharacteristic heartRateCharacteristic;
     private BluetoothGattCharacteristic bodySensorLocationCharacteristic;
@@ -38,7 +40,7 @@ public class HeartrateBluetoothDevice {
     }
 
     public Observable<Integer> observeHeartrate() {
-        final PublishSubject<Integer> heartrateSubject = PublishSubject.create();
+        heartrateSubject = PublishSubject.create();
 
         final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
             @Override
@@ -111,6 +113,16 @@ public class HeartrateBluetoothDevice {
 
         device.connectGatt(context, false, gattCallback);
         return heartrateSubject;
+    }
+
+    public void stopObservingHeartrate() {
+        if (deviceGatt != null) {
+            deviceGatt.close();
+        }
+
+        if (heartrateSubject != null) {
+            heartrateSubject.onCompleted();
+        }
     }
 
     @Override

@@ -9,6 +9,9 @@ import android.support.annotation.Nullable;
 import android.util.Log;
 
 import rx.Observable;
+import rx.functions.Action1;
+import rx.schedulers.Schedulers;
+import rx.subjects.PublishSubject;
 
 /**
  * Created by tschroep on 19.02.16.
@@ -19,6 +22,9 @@ public class MonitoringService extends Service {
 
     private final MonitoringServiceBinder serviceBinder = new MonitoringServiceBinder();
     private BluetoothDiscovery bluetoothDiscovery;
+    private HeartrateBluetoothDevice observedHeartrateDevice;
+
+    public final PublishSubject<Integer> heartrateObservable = PublishSubject.create();
 
     /**
      * Class used for the client Binder.  Because we know this service always
@@ -55,5 +61,19 @@ public class MonitoringService extends Service {
     public Observable<BluetoothDevice> scanningForHeartrateDevices() {
         Log.d(TAG, "startScanning()");
         return bluetoothDiscovery.scan();
+    }
+
+    public void observeHeartrate(HeartrateBluetoothDevice heartrateBluetoothDevice) {
+
+        heartrateBluetoothDevice.stopObservingHeartrate();
+
+        heartrateBluetoothDevice.observeHeartrate()
+                .subscribeOn(Schedulers.io())
+                .subscribe(new Action1<Integer>() {
+                    @Override
+                    public void call(Integer heartrate) {
+                        heartrateObservable.onNext(heartrate);
+                    }
+                });
     }
 }
