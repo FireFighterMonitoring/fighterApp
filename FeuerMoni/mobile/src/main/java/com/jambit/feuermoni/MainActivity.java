@@ -21,26 +21,16 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.jambit.feuermoni.backend.BackendConnection;
+import com.jambit.feuermoni.backend.model.VitalSigns;
 import com.jambit.feuermoni.ble.HeartrateBluetoothDevice;
 import com.jambit.feuermoni.ble.MonitoringService;
-import com.jambit.feuermoni.model.MonitoringStatus;
-import com.jambit.feuermoni.model.VitalSigns;
 import com.jambit.feuermoni.util.BackgroundThread;
 import com.jambit.feuermoni.util.PermissionHelper;
+import com.jambit.feuermoni.wear.WearableConnection;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
 import rx.Subscriber;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action1;
@@ -50,15 +40,6 @@ public class MainActivity extends AppCompatActivity {
 
     /** The tag used for logging. */
     private static final String TAG = MainActivity.class.getSimpleName();
-
-    /** Media Type used for POST requests */
-    private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
-
-    private static final String BASE_URL = "http://192.168.232.112:8080/api/v1";
-    private static final String REST_PATH_DATA = "/data";
-
-    /** HTTP client */
-    private final OkHttpClient client = new OkHttpClient();
 
     private BackgroundThread backgroundThread = new BackgroundThread();
 
@@ -77,9 +58,6 @@ public class MainActivity extends AppCompatActivity {
     private ListView devicesListView;
     private ArrayAdapter<HeartrateBluetoothDevice> devicesArrayAdapter;
 
-    private MonitoringStatus monitoringStatus;
-
-    private ScheduledExecutorService scheduler;
     private WearableConnection wearableConnection;
 
     private MonitoringService monitoringService;
@@ -104,8 +82,8 @@ public class MainActivity extends AppCompatActivity {
                         public void call(Integer integer) {
                             Log.d(TAG, "Observed new heart rate: " + integer);
 
-                            if (monitoringStatus != null) {
-                                monitoringStatus.updateHeartRate(integer);
+                            if (BackendConnection.getInstance().isLoggedIn()) {
+                                BackendConnection.getInstance().getMonitoringStatus().updateHeartRate(integer);
                             }
 
                             updateHeartrate(integer);
@@ -119,8 +97,8 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void call(MonitoringService.SensorStatus sensorStatus) {
                             if (sensorStatus == MonitoringService.SensorStatus.DISCONNECTED) {
-                                if (monitoringStatus != null) {
-                                    monitoringStatus.setVitalSigns(null);
+                                if (BackendConnection.getInstance().isLoggedIn()) {
+                                    BackendConnection.getInstance().getMonitoringStatus().setVitalSigns(null);
                                 }
                             }
                         }
@@ -157,8 +135,8 @@ public class MainActivity extends AppCompatActivity {
             public void onConnectionLost() {
                 Log.d(TAG, "onConnectionLost()");
 
-                if (monitoringStatus != null) {
-                    monitoringStatus.setVitalSigns(null);
+                if (BackendConnection.getInstance().isLoggedIn()) {
+                    BackendConnection.getInstance().getMonitoringStatus().setVitalSigns(null);
                 }
             }
 
@@ -166,8 +144,8 @@ public class MainActivity extends AppCompatActivity {
             public void onConnectionFailed() {
                 Log.d(TAG, "onConnectionFailed()");
 
-                if (monitoringStatus != null) {
-                    monitoringStatus.setVitalSigns(null);
+                if (BackendConnection.getInstance().isLoggedIn()) {
+                    BackendConnection.getInstance().getMonitoringStatus().setVitalSigns(null);
                 }
             }
 
@@ -176,21 +154,15 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "onVitalSignsReceived()");
 
                 updateHeartrate(vitalSigns.heartRate);
+                updateStepCount(vitalSigns.stepCount);
 
-                stepsTextView.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        stepsTextView.setText(String.format(getString(R.string.steps), (int) vitalSigns.stepCount));
-                    }
-                });
-
-                if (monitoringStatus == null) {
-                    Log.e(TAG, "Data was received from wearable but monitoring status is null - this shouldn't happen!");
+                if (!BackendConnection.getInstance().isLoggedIn()) {
+                    Log.e(TAG, "Data was received from wearable but not logged in - this shouldn't happen!");
                     return;
                 }
 
-                monitoringStatus.updateHeartRate(vitalSigns.heartRate);
-                monitoringStatus.updateSteps(vitalSigns.stepCount);
+                BackendConnection.getInstance().getMonitoringStatus().updateHeartRate(vitalSigns.heartRate);
+                BackendConnection.getInstance().getMonitoringStatus().updateSteps(vitalSigns.stepCount);
             }
         });
 
@@ -208,7 +180,7 @@ public class MainActivity extends AppCompatActivity {
                         }
                     });
                 } else {
-                    if (monitoringStatus == null) {
+                    if (!BackendConnection.getInstance().isLoggedIn()) {
                         Log.e(TAG, "ERROR: Are you logged in?");
                         return;
                     }
@@ -216,7 +188,10 @@ public class MainActivity extends AppCompatActivity {
                     if (!PermissionHelper.hasBodySensorsPermission(MainActivity.this)) {
                         Log.e(TAG, "Cannot access body sensors!");
                         PermissionHelper.requestBodySensorsPermission(MainActivity.this);
-                        monitoringStatus.setVitalSigns(null);
+                        if (BackendConnection.getInstance().isLoggedIn()) {
+                            BackendConnection.getInstance().getMonitoringStatus().setVitalSigns(null);
+                        }
+
                         return;
                     }
 
@@ -232,11 +207,10 @@ public class MainActivity extends AppCompatActivity {
         loginButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (monitoringStatus == null) {
-                    monitoringStatus = login();
-                } else {
+                if (BackendConnection.getInstance().isLoggedIn()) {
                     logout();
-                    monitoringStatus = null;
+                } else {
+                    login();
                 }
             }
         });
@@ -344,10 +318,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onPause() {
-        super.onPause();
+    protected void onResume() {
+        super.onResume();
+        updateLoginStatus(BackendConnection.getInstance().isLoggedIn());
 
-        stopScheduler();
+        if (BackendConnection.getInstance().isLoggedIn()) {
+            updateHeartrate(BackendConnection.getInstance().getMonitoringStatus().getVitalSigns().heartRate);
+            updateHeartrate(BackendConnection.getInstance().getMonitoringStatus().getVitalSigns().stepCount);
+        }
     }
 
     @Override
@@ -364,9 +342,47 @@ public class MainActivity extends AppCompatActivity {
                 }
                 return;
             }
-
-            // other 'case' lines to check for other permissions this app might request
         }
+    }
+
+    private void isScanning(boolean isScanning) {
+        searchBluetoothDevicesButton.setEnabled(!isScanning);
+        searchBluetoothDevicesButton.setText(isScanning ? R.string.searching : R.string.search_bluetooth_devices);
+    }
+
+    private void login() {
+        String ffIdText = ffidTextView.getText().toString();
+
+        if (ffIdText == null || ffIdText.isEmpty()) {
+            Toast.makeText(MainActivity.this, "Invalid ffId", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        BackendConnection.getInstance().login(ffIdText);
+        updateLoginStatus(true);
+    }
+
+    private void logout() {
+        wearableConnection.disconnect();
+        monitoringService.stopObservingHeartrate();
+        BackendConnection.getInstance().logout();
+
+        updateLoginStatus(false);
+    }
+
+    private void updateLoginStatus(final boolean isLoggedIn) {
+        loginButton.post(new Runnable() {
+            @Override
+            public void run() {
+                if (isLoggedIn) {
+                    ffidTextView.setText(BackendConnection.getInstance().getMonitoringStatus().ffId);
+                }
+                ffidTextView.setEnabled(!isLoggedIn);
+
+                loginButton.setText(isLoggedIn ? R.string.logout : R.string.login);
+                startMonitoringButton.setVisibility(isLoggedIn ? View.VISIBLE : View.GONE);
+            }
+        });
     }
 
     private void updateHeartrate(final int heartRate) {
@@ -378,107 +394,11 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void isScanning(boolean isScanning) {
-        searchBluetoothDevicesButton.setEnabled(!isScanning);
-        searchBluetoothDevicesButton.setText(isScanning ? R.string.searching : R.string.search_bluetooth_devices);
-    }
-
-    /**
-     * Posts JSON data to the FireMoni backend service
-     */
-    private void postStatus(MonitoringStatus status) {
-        GsonBuilder gsonBuilder = new GsonBuilder();
-        Gson gson = gsonBuilder.create();
-        final String postBody = gson.toJson(status);
-
-        final Request request = new Request.Builder()
-                .url(BASE_URL + REST_PATH_DATA)
-                .post(RequestBody.create(MEDIA_TYPE_JSON, postBody))
-                .build();
-        backgroundThread.post(new Runnable() {
+    private void updateStepCount(final int stepCount) {
+        stepsTextView.post(new Runnable() {
             @Override
             public void run() {
-                Response response = null;
-
-                try {
-                    Log.d(TAG, "POSTing JSON: " + postBody + " to Host: " + BASE_URL);
-                    response = client.newCall(request).execute();
-
-                    if (!response.isSuccessful()) {
-                        Log.e(TAG, "REQUEST FAILED! (CODE: " + response.code() + " - " + response.body().string());
-                    } else {
-                        try {
-                            Log.d(TAG, response.body().string());
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-    }
-
-    private void stopScheduler() {
-        if (scheduler != null) {
-            Log.d(TAG, "stopping scheduler");
-            scheduler.shutdownNow();
-            scheduler = null;
-        }
-    }
-
-    private MonitoringStatus login() {
-        stopScheduler();
-
-        String ffIdText = ffidTextView.getText().toString();
-
-        if (ffIdText == null || ffIdText.isEmpty()) {
-            Toast.makeText(MainActivity.this, "Invalid ffId", Toast.LENGTH_LONG).show();
-            return null;
-        }
-
-        final MonitoringStatus result = new MonitoringStatus(ffIdText);
-        result.status = MonitoringStatus.Status.CONNECTED;
-        postStatus(result);
-        result.status = MonitoringStatus.Status.NO_DATA;
-
-        ffidTextView.setEnabled(false);
-        loginButton.setText(R.string.logout);
-
-        startMonitoringButton.setVisibility(View.VISIBLE);
-
-        scheduler = Executors.newScheduledThreadPool(1);
-        scheduler.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                postStatus(result);
-            }
-        }, 0, 5, TimeUnit.SECONDS);
-
-        return result;
-    }
-
-    private void logout() {
-        wearableConnection.disconnect();
-        stopScheduler();
-
-        if (monitoringStatus == null) {
-            return;
-        }
-
-        monitoringStatus.setVitalSigns(null);
-        monitoringStatus.status = MonitoringStatus.Status.DISCONNECTED;
-        postStatus(monitoringStatus);
-
-        loginButton.post(new Runnable() {
-            @Override
-            public void run() {
-                ffidTextView.setEnabled(false);
-                loginButton.setText(R.string.login);
-                loginButton.setEnabled(true);
-
-                startMonitoringButton.setVisibility(View.GONE);
+                stepsTextView.setText(String.format(getString(R.string.steps), stepCount));
             }
         });
     }

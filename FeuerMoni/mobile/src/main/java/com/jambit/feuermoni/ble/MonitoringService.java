@@ -68,14 +68,13 @@ public class MonitoringService extends Service {
     }
 
     public void observeHeartrate(final HeartrateBluetoothDevice heartrateBluetoothDevice) {
-        if (observedHeartrateDevice != null) {
-            heartrateBluetoothDevice.stopObservingHeartrate();
-        }
+        Log.d(TAG, "observeHeartrate()");
+        stopObservingHeartrate();
 
         heartrateSensorStatusObservable.onNext(SensorStatus.CONNECTED);
 
         observedHeartrateDevice = heartrateBluetoothDevice;
-        heartrateBluetoothDevice.observeHeartrate()
+        observedHeartrateDevice.observeHeartrate()
                 .subscribeOn(Schedulers.io())
                 .subscribe(new Subscriber<Integer>() {
                     @Override
@@ -95,5 +94,13 @@ public class MonitoringService extends Service {
                         heartrateObservable.onNext(integer);
                     }
                 });
+    }
+
+    public void stopObservingHeartrate() {
+        if (observedHeartrateDevice != null) {
+            Log.d(TAG, "stopObservingHeartrate()");
+            observedHeartrateDevice.stopObservingHeartrate();
+            heartrateSensorStatusObservable.onNext(SensorStatus.DISCONNECTED);
+        }
     }
 }

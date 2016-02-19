@@ -1,4 +1,4 @@
-package com.jambit.feuermoni;
+package com.jambit.feuermoni.wear;
 
 import android.content.Context;
 import android.os.Bundle;
@@ -14,7 +14,7 @@ import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
 import com.jambit.feuermoni.common.DataMapKeys;
-import com.jambit.feuermoni.model.VitalSigns;
+import com.jambit.feuermoni.backend.model.VitalSigns;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;

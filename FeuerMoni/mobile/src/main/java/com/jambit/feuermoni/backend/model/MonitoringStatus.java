@@ -1,4 +1,4 @@
-package com.jambit.feuermoni.model;
+package com.jambit.feuermoni.backend.model;
 
 /**
  {
@@ -50,6 +50,10 @@ public class MonitoringStatus {
         }
 
         this.vitalSigns = vitalSigns;
+    }
+
+    public VitalSigns getVitalSigns() {
+        return vitalSigns;
     }
 
     public void updateHeartRate(int heartrate) {

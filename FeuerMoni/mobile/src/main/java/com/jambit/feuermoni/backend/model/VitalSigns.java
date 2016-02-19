@@ -1,6 +1,4 @@
-package com.jambit.feuermoni.model;
-
-import com.google.gson.annotations.SerializedName;
+package com.jambit.feuermoni.backend.model;
 
 /**
  * Created by tschroep on 17.02.16.

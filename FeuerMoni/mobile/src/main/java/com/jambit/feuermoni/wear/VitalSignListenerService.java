@@ -1,4 +1,4 @@
-package com.jambit.feuermoni;
+package com.jambit.feuermoni.wear;
 
 import android.util.Log;
 
