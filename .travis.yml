@@ -7,5 +7,5 @@ android:
     - android-23
     - extra
 
-jdk: oraclejdk7
+jdk: oraclejdk8
 
