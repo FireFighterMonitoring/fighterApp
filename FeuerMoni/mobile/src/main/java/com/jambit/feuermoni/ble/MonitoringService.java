@@ -62,7 +62,7 @@ public class MonitoringService extends Service {
         return serviceBinder;
     }
 
-    public Observable<BluetoothDevice> scanningForHeartrateDevices() {
+    public Observable<BluetoothDevice> startScanningForHeartrateDevices() {
         Log.d(TAG, "startScanning()");
         return bluetoothDiscovery.scan();
     }

@@ -257,8 +257,9 @@ public class MainActivity extends AppCompatActivity {
         searchBluetoothDevicesButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                isScanning(true)
-                ;
+                isScanning(true);
+
+                devicesArrayAdapter.clear();
                 backgroundThread.post(new Runnable() {
                     @Override
                     public void run() {
@@ -276,7 +277,7 @@ public class MainActivity extends AppCompatActivity {
                                 return;
                             }
 
-                            monitoringService.scanningForHeartrateDevices()
+                            monitoringService.startScanningForHeartrateDevices()
                                     .subscribeOn(Schedulers.io())
                                     .observeOn(AndroidSchedulers.mainThread())
                                     .subscribe(new Subscriber<BluetoothDevice>() {

@@ -76,17 +76,12 @@ public class BluetoothDiscovery {
 
                 for (ParcelUuid uuid : uuids) {
                     Log.d(TAG, " - service uuid: " + uuid.toString());
+                    BluetoothDevice device = result.getDevice();
 
-                    if (uuid.getUuid().equals(HEART_RATE_SERVICE_UUID)) {
-                        BluetoothDevice device = result.getDevice();
-                        Log.i(TAG, "Found a Heart Rate Service on device: " + device.getName());
-
-                        if (compatibleScanRecords.add(device)) {
-                            heartrateDevicesSubject.onNext(device);
-                        }
-
-                        Log.d(TAG, "Set has: " + compatibleScanRecords.size() + " item(s)");
+                    if (compatibleScanRecords.add(device)) {
+                        heartrateDevicesSubject.onNext(device);
                     }
+
                 }
             }
 
