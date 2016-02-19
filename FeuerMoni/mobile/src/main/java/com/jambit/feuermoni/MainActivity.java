@@ -157,13 +157,19 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onConnectionLost() {
                 Log.d(TAG, "onConnectionLost()");
-                monitoringStatus.setVitalSigns(null);
+
+                if (monitoringStatus != null) {
+                    monitoringStatus.setVitalSigns(null);
+                }
             }
 
             @Override
             public void onConnectionFailed() {
                 Log.d(TAG, "onConnectionFailed()");
-                monitoringStatus.setVitalSigns(null);
+
+                if (monitoringStatus != null) {
+                    monitoringStatus.setVitalSigns(null);
+                }
             }
 
             @Override
@@ -430,7 +436,10 @@ public class MainActivity extends AppCompatActivity {
             return null;
         }
 
-        MonitoringStatus result = new MonitoringStatus(ffIdText);
+        final MonitoringStatus result = new MonitoringStatus(ffIdText);
+        result.status = MonitoringStatus.Status.CONNECTED;
+        postStatus(result);
+        result.status = MonitoringStatus.Status.NO_DATA;
 
         ffidTextView.setEnabled(false);
         loginButton.setText(R.string.logout);
@@ -442,7 +451,7 @@ public class MainActivity extends AppCompatActivity {
         scheduler.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
-                postStatus(monitoringStatus);
+                postStatus(result);
             }
         }, 0, 5, TimeUnit.SECONDS);
 
@@ -452,6 +461,10 @@ public class MainActivity extends AppCompatActivity {
     private void logout() {
         wearableConnection.disconnect();
         stopScheduler();
+
+        if (monitoringStatus == null) {
+            return;
+        }
 
         monitoringStatus.setVitalSigns(null);
         monitoringStatus.status = MonitoringStatus.Status.DISCONNECTED;

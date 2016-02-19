@@ -16,6 +16,8 @@ package com.jambit.feuermoni.model;
  */
 public class MonitoringStatus {
     public enum Status {
+        CONNECTED,
+
         /** Vital sign monitoring is OK. */
         OK,
 
