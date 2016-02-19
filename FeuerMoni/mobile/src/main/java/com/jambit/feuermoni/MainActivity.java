@@ -3,10 +3,14 @@ package com.jambit.feuermoni;
 import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothDevice;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
+import android.os.IBinder;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -23,12 +27,12 @@ import android.widget.Toast;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.jambit.feuermoni.ble.BluetoothDiscovery;
+import com.jambit.feuermoni.ble.MonitoringService;
 import com.jambit.feuermoni.ble.HeartrateBluetoothDevice;
 import com.jambit.feuermoni.model.MonitoringStatus;
 import com.jambit.feuermoni.model.VitalSigns;
 import com.jambit.feuermoni.util.BackgroundThread;
-import com.jambit.feuermoni.util.MainThread;
+import com.jambit.feuermoni.util.PermissionHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,7 +47,6 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 import rx.Subscriber;
 import rx.android.schedulers.AndroidSchedulers;
-import rx.functions.Action0;
 import rx.functions.Action1;
 import rx.schedulers.Schedulers;
 
@@ -87,7 +90,27 @@ public class MainActivity extends AppCompatActivity {
     private ScheduledExecutorService scheduler;
     private WearableConnection wearableConnection;
 
-    private BluetoothDiscovery bluetoothDiscovery;
+    private MonitoringService monitoringService;
+    private boolean isBoundToServie = false;
+
+    /** Defines callbacks for service binding, passed to bindService() */
+    private ServiceConnection serviceConnection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName className, IBinder service) {
+            Log.d(TAG, "onServiceConnected()");
+            // We've bound to LocalService, cast the IBinder and get LocalService instance
+            MonitoringService.MonitoringServiceBinder binder = (MonitoringService.MonitoringServiceBinder) service;
+            monitoringService = binder.getService();
+            isBoundToServie = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName arg0) {
+            Log.d(TAG, "onServiceDisconnected()");
+            isBoundToServie = false;
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -216,43 +239,46 @@ public class MainActivity extends AppCompatActivity {
         searchBluetoothDevicesButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                searchBluetoothDevicesButton.setEnabled(false);
-                searchBluetoothDevicesButton.setText(R.string.searching);
-
+                isScanning(true)
+                ;
                 backgroundThread.post(new Runnable() {
                     @Override
                     public void run() {
-                        if (bluetoothDiscovery.requestLocationPermission(MainActivity.this)) {
-                            if (!bluetoothDiscovery.isBluetoothAvailable()) {
-                                bluetoothDiscovery.requestBluetoothPermission(MainActivity.this);
-
+                        if (PermissionHelper.requestLocationPermission(MainActivity.this)) {
+                            if (!PermissionHelper.isBluetoothAvailable(getApplicationContext())) {
+                                PermissionHelper.requestBluetoothPermission(MainActivity.this);
                                 searchBluetoothDevicesButton.setEnabled(true);
                                 searchBluetoothDevicesButton.setText(R.string.search_bluetooth_devices);
-                            } else {
-                                bluetoothDiscovery.scan()
-                                        .subscribeOn(Schedulers.io())
-                                        .observeOn(AndroidSchedulers.mainThread())
-                                        .subscribe(new Subscriber<BluetoothDevice>() {
-                                            @Override
-                                            public void onCompleted() {
-                                                Log.d(TAG, "onCompleted() - BLE SCAN COMPLETE!");
-                                                searchBluetoothDevicesButton.setEnabled(true);
-                                                searchBluetoothDevicesButton.setText(R.string.search_bluetooth_devices);
-                                            }
-
-                                            @Override
-                                            public void onError(Throwable e) {
-                                                Log.e(TAG, "Error observing heratrate devices! (" + e.getMessage() + ")");
-                                                searchBluetoothDevicesButton.setEnabled(true);
-                                                searchBluetoothDevicesButton.setText(R.string.search_bluetooth_devices);
-                                            }
-
-                                            @Override
-                                            public void onNext(BluetoothDevice bluetoothDevice) {
-                                                devicesArrayAdapter.add(new HeartrateBluetoothDevice(bluetoothDevice, MainActivity.this));
-                                            }
-                                        });
+                                return;
                             }
+
+                            if (!isBoundToServie) {
+                                Toast.makeText(MainActivity.this, "Monitoring service is not bound!", Toast.LENGTH_LONG);
+                                isScanning(false);
+                                return;
+                            }
+
+                            monitoringService.scanningForHeartrateDevices()
+                                    .subscribeOn(Schedulers.io())
+                                    .observeOn(AndroidSchedulers.mainThread())
+                                    .subscribe(new Subscriber<BluetoothDevice>() {
+                                        @Override
+                                        public void onCompleted() {
+                                            Log.d(TAG, "onCompleted() - BLE SCAN COMPLETE!");
+                                            isScanning(false);
+                                        }
+
+                                        @Override
+                                        public void onError(Throwable e) {
+                                            Log.e(TAG, "Error observing heratrate devices! (" + e.getMessage() + ")");
+                                            isScanning(false);
+                                        }
+
+                                        @Override
+                                        public void onNext(BluetoothDevice bluetoothDevice) {
+                                            devicesArrayAdapter.add(new HeartrateBluetoothDevice(bluetoothDevice, MainActivity.this));
+                                        }
+                                    });
                         }
                     }
                 });
@@ -278,9 +304,28 @@ public class MainActivity extends AppCompatActivity {
                         });
             }
         });
+    }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
 
-        bluetoothDiscovery = new BluetoothDiscovery(this);
+        Log.d(TAG, "onStart()");
+
+        Intent intent = new Intent(MainActivity.this, MonitoringService.class);
+        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+
+        Log.d(TAG, "onStop()");
+
+        if (isBoundToServie) {
+            unbindService(serviceConnection);
+            isBoundToServie = false;
+        }
     }
 
     @Override
@@ -307,6 +352,11 @@ public class MainActivity extends AppCompatActivity {
 
             // other 'case' lines to check for other permissions this app might request
         }
+    }
+
+    private void isScanning(boolean isScanning) {
+        searchBluetoothDevicesButton.setEnabled(!isScanning);
+        searchBluetoothDevicesButton.setText(isScanning ? R.string.searching : R.string.search_bluetooth_devices);
     }
 
     /**

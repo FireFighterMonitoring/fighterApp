@@ -38,9 +38,6 @@ import rx.subjects.PublishSubject;
 public class BluetoothDiscovery {
     public static final String TAG = BluetoothDiscovery.class.getSimpleName();
 
-    private static final int REQUEST_ENABLE_BT = 0;
-    private static final int REQUEST_LOACTION_PERMISSION = 1;
-
     private final BluetoothManager bluetoothManager;
     private final BluetoothAdapter bluetoothAdapter;
     private final BluetoothLeScanner bluetoothLeScanner;
@@ -59,41 +56,6 @@ public class BluetoothDiscovery {
         bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
         bluetoothAdapter = bluetoothManager.getAdapter();
         bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-    }
-
-    public boolean isBluetoothAvailable() {
-        return bluetoothAdapter != null && bluetoothAdapter.isEnabled();
-    }
-
-    public void requestBluetoothPermission(Activity activity) {
-        Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-        activity.startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-    }
-
-    public boolean requestLocationPermission(Activity activity) {
-        // Here, thisActivity is the current activity
-        if (ContextCompat.checkSelfPermission(activity,
-                Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-
-            // Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(activity,
-                    Manifest.permission.ACCESS_FINE_LOCATION)) {
-                Toast.makeText(activity, "I need location permission!", Toast.LENGTH_LONG).show();
-
-            } else {
-
-                // No explanation needed, we can request the permission.
-
-                ActivityCompat.requestPermissions(activity,
-                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                        REQUEST_LOACTION_PERMISSION);
-            }
-
-            return false;
-        } else {
-            return true;
-        }
     }
 
     public Observable<BluetoothDevice> scan() {
