@@ -26,7 +26,7 @@ public class BackendConnection {
 
     /** Media Type used for POST requests */
     private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
-    private static final String BASE_URL = "http://192.168.232.112:8080/api/v1";
+    private static final String BASE_URL = "https://feuer-moni-backend.herokuapp.com/api/v1";
     private static final String REST_PATH_DATA = "/data";
 
     private static BackendConnection ourInstance = new BackendConnection();
